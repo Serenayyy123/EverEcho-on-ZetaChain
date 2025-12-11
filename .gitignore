@@ -1,0 +1,105 @@
+# ===================================
+# EverEcho 项目 - 根目录 .gitignore
+# ===================================
+
+# 🔒 敏感信息 - 绝对不能上传！
+# ===================================
+.env
+.env.local
+.env.*.local
+.env.production
+backend/.env
+frontend/.env
+*.pem
+*.key
+*.p12
+*.pfx
+
+# 私钥和密钥文件
+private-keys/
+secrets/
+*.secret
+
+# 🗄️ 数据库文件 - 本地开发用
+# ===================================
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+backend/prisma/dev.db
+backend/prisma/dev.db-journal
+
+# 📦 依赖包
+# ===================================
+node_modules/
+*/node_modules/
+**/node_modules/
+
+# 🏗️ 构建产物
+# ===================================
+dist/
+build/
+*/dist/
+*/build/
+.next/
+out/
+
+# TypeScript
+*.tsbuildinfo
+
+# 📝 日志文件
+# ===================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# 🧪 测试覆盖率
+# ===================================
+coverage/
+.nyc_output/
+*.lcov
+
+# 💻 IDE 和编辑器
+# ===================================
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# 🔧 临时文件
+# ===================================
+*.tmp
+*.temp
+.cache/
+.parcel-cache/
+frontend/.vite/
+
+# Hardhat
+cache/
+artifacts/
+typechain-types/
+
+# 📱 移动端
+# ===================================
+*.apk
+*.ipa
+
+# 🎯 其他
+# ===================================
+.env.backup
+.env.old
+*.bak
+*.orig
+

@@ -1,0 +1,151 @@
+/* Import fonts first (CSS requirement) */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+/**
+ * EverEcho UI V2 Design Tokens
+ * Deep space / Quiet luxury / Soft glow / Glass & depth
+ * UI only - 不影响任何业务逻辑
+ */
+
+:root {
+  /* ========================================
+     Brand / Accent Colors
+     ======================================== */
+  --brand-500: #6C7BFF;
+  --brand-600: #5867F2;
+  --brand-700: #4756D6;
+  --brand-soft: rgba(108, 123, 255, 0.12);
+
+  /* ========================================
+     Backgrounds - Deep Space
+     ======================================== */
+  --bg-900: #070A13;
+  --bg-850: #0A0F1E;
+  --bg-800: #0E1426;
+  
+  --bg-gradient: 
+    radial-gradient(1200px circle at 50% -10%, #121A36 0%, transparent 55%),
+    radial-gradient(900px circle at 80% 10%, #1A1236 0%, transparent 60%),
+    linear-gradient(180deg, #060912 0%, #070A13 100%);
+
+  /* ========================================
+     Surfaces / Cards - Glass & Depth
+     ======================================== */
+  --surface-0: rgba(255, 255, 255, 0.02);
+  --surface-1: rgba(255, 255, 255, 0.04);
+  --surface-2: rgba(255, 255, 255, 0.06);
+  --surface-border: rgba(255, 255, 255, 0.08);
+  --surface-glow: rgba(108, 123, 255, 0.25);
+
+  /* ========================================
+     Text - High-end Gray/White
+     ======================================== */
+  --text-100: #F7F7F5;
+  --text-200: #E6E7EB;
+  --text-300: #B8BCC7;
+  --text-400: #8A90A0;
+
+  /* ========================================
+     Status Colors - Soft & Restrained
+     ======================================== */
+  --success: #39D98A;
+  --warning: #F0C94C;
+  --error: #D66A6A;
+  --error-bg: rgba(214, 106, 106, 0.12);
+
+  /* ========================================
+     Typography
+     ======================================== */
+  --font-serif: "Playfair Display", "Cormorant Garamond", serif;
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+
+  /* Type Scale */
+  --h1-size: clamp(56px, 7vw, 96px);
+  --h1-weight: 600;
+  --h1-letter: -0.02em;
+  --h1-line: 0.95;
+
+  --tagline-size: 14px;
+  --tagline-letter: 0.24em;
+  --tagline-weight: 500;
+
+  --body-size: 16px;
+  --body-line: 1.6;
+
+  /* ========================================
+     Material / Radius / Shadow
+     ======================================== */
+  --radius-card: 20px;
+  --radius-button: 999px;
+  --radius-input: 12px;
+
+  /* Shadows & Glow */
+  --shadow-soft: 0 8px 30px rgba(0, 0, 0, 0.45);
+  --shadow-lift: 
+    0 12px 50px rgba(0, 0, 0, 0.6),
+    0 0 0 1px var(--surface-border);
+  --glow-brand: 0 0 40px rgba(108, 123, 255, 0.35);
+
+  /* Glass Card */
+  --glass-bg: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.06) 0%,
+    rgba(255, 255, 255, 0.02) 100%
+  );
+  --glass-border: 1px solid rgba(255, 255, 255, 0.08);
+  --glass-blur: blur(14px);
+
+  /* ========================================
+     Component Tokens
+     ======================================== */
+  
+  /* Primary Button - Premium Quality */
+  --btn-primary-bg: linear-gradient(90deg, #495CFF 0%, #7A5CFF 100%);
+  --btn-primary-bg-hover: linear-gradient(90deg, #5B6CFF 0%, #8A6CFF 100%);
+  --btn-primary-text: #F7F7F5;
+  --btn-primary-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    inset 0 -6px 12px rgba(0, 0, 0, 0.35),
+    0 10px 30px rgba(76, 92, 255, 0.35);
+
+  /* Secondary/Ghost Button */
+  --btn-secondary-bg: rgba(255, 255, 255, 0.05);
+  --btn-secondary-border: 1px solid rgba(255, 255, 255, 0.10);
+  --btn-secondary-text: var(--text-200);
+
+  /* ========================================
+     Motion Tokens
+     ======================================== */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-soft: cubic-bezier(0.2, 0, 0, 1);
+  
+  --dur-fast: 160ms;
+  --dur-med: 280ms;
+  --dur-slow: 600ms;
+}
+
+/* ========================================
+   Keyframe Animations - Restrained
+   ======================================== */
+
+/* Landing entrance - slow & elegant */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Subtle breathing background (8-12s cycle, ≤3% amplitude) */
+@keyframes breathe {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.97;
+  }
+}

@@ -1,0 +1,49 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Profile {
+  address           String   @id
+  nickname          String
+  city              String
+  skills            String   // JSON string array
+  encryptionPubKey  String
+  contacts          String?  // 联系方式（可选）
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Task {
+  chainId                   String   // 链 ID（用于多链隔离）
+  taskId                    String   // 任务 ID
+  title                     String
+  description               String
+  contactsEncryptedPayload  String
+  contactsPlaintext         String?  // 明文联系方式（仅用于重加密，可选）
+  createdAt                 String   // uint256 as string
+  category                  String?  // 任务分类（可选）
+  creator                   String?  // Creator 地址（可选）
+  updatedAt                 DateTime @updatedAt
+
+  @@id([chainId, taskId])  // 复合主键：chainId + taskId
+  @@index([chainId])       // 索引：按链查询
+}
+
+model ContactKey {
+  chainId            String   // 链 ID（用于多链隔离）
+  taskId             String   // 任务 ID
+  creatorWrappedDEK  String
+  helperWrappedDEK   String
+  createdAt          DateTime @default(now())
+
+  @@id([chainId, taskId])  // 复合主键：chainId + taskId
+  @@index([chainId])       // 索引：按链查询
+}

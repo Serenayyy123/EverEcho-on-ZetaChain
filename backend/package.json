@@ -1,0 +1,42 @@
+{
+  "name": "everecho-backend",
+  "version": "1.0.0",
+  "description": "EverEcho MVP Backend - Profile Storage Service",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "prisma generate && tsc",
+    "start": "node dist/index.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "test": "jest --coverage",
+    "resync:metadata": "npx tsx scripts/resync-all-metadata.ts",
+    "sync:profiles": "npx tsx scripts/sync-all-historical-profiles.ts",
+    "check:profiles": "npx tsx scripts/check-all-profiles-status.ts"
+  },
+  "keywords": ["everecho", "web3", "profile"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@prisma/client": "^5.7.0",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.10.6",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "ethers": "^6.8.1",
+    "express": "^4.18.2",
+    "prisma": "^5.7.0",
+    "tweetnacl": "^1.0.3",
+    "typescript": "^5.3.3"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.11",
+    "@types/supertest": "^6.0.2",
+    "jest": "^29.7.0",
+    "supertest": "^6.3.3",
+    "ts-jest": "^29.1.1",
+    "ts-node-dev": "^2.0.0"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "network": "Base Sepolia",
+  "chainId": 84532,
+  "deployer": "0x099Fb550F7Dc5842621344c5a1678F943eEF3488",
+  "timestamp": "2025-11-25T12:22:03.055Z",
+  "contracts": {
+    "EOCHOToken": "0xe7940e81dDf4d6415f2947829938f9A24B0ad35d",
+    "Register": "0xae8d98a0AF4ECe6240949bB74E03A9281Ce58151",
+    "TaskEscrow": "0x9AFBBD83E8B0F4169EDa1bE667BB36a0565cBF28"
+  }
+}

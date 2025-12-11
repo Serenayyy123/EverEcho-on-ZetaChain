@@ -1,0 +1,38 @@
+/* TaskSquare Filter Card Responsive Styles */
+
+/* Mobile breakpoint: single column layout */
+@media (max-width: 768px) {
+  .controls-row-responsive {
+    grid-template-columns: 1fr !important;
+  }
+  
+  .status-pills-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .status-pills-responsive::-webkit-scrollbar {
+    height: 4px;
+  }
+  
+  .status-pills-responsive::-webkit-scrollbar-thumb {
+    background-color: #d1d5db;
+    border-radius: 2px;
+  }
+}
+
+/* Focus states for better accessibility */
+.control-select-responsive:focus,
+.control-input-responsive:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.status-pill-responsive:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.status-pill-responsive:active {
+  transform: translateY(0);
+}
