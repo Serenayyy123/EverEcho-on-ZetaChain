@@ -20,7 +20,7 @@ contract TaskEscrow {
     // ============ 状态枚举（冻结点 1.3-13）============
     enum TaskStatus { Open, InProgress, Submitted, Completed, Cancelled }
 
-    // ============ Task 结构体（PRD 5.2 完整 13 字段）============
+    // ============ Task 结构体（PRD 5.2 完整 13 字段 + ZetaChain 扩展 3 字段）============
     struct Task {
         uint256 taskId;
         address creator;
@@ -35,6 +35,10 @@ contract TaskEscrow {
         uint256 terminateRequestedAt;
         bool fixRequested;
         uint256 fixRequestedAt;
+        // ZetaChain 扩展字段（追加在末尾）
+        uint256 echoPostFee;      // 发布费用（10 ECHO）
+        address rewardAsset;      // 跨链奖励资产地址
+        uint256 rewardAmount;     // 跨链奖励数量
     }
 
     // ============ 常量（与 PRD 1.4 完全一致）============
@@ -45,6 +49,7 @@ contract TaskEscrow {
     uint256 public constant T_FIX_EXTENSION = 3 days;
     uint256 public constant FEE_BPS = 200; // 2%
     uint256 public constant MAX_REWARD = 1000 * 10**18; // 1000 EOCHO
+    uint256 public constant TASK_POST_FEE = 10 * 10**18; // 10 EOCHO
 
     // ============ 状态变量 ============
     IEOCHOToken public immutable echoToken;
@@ -86,15 +91,49 @@ contract TaskEscrow {
     // ============ 核心函数 ============
 
     /**
-     * @notice 创建任务（Creator 抵押 reward）
+     * @notice 创建任务（向后兼容版本）
      * @param reward 任务奖励金额
      * @param taskURI 任务元数据 URI
      * @return taskId 任务 ID
-     * @dev 冻结点 1.1-4：验证 isRegistered
-     * @dev 冻结点 1.2-10：reward > 0 && reward <= MAX_REWARD
-     * @dev 冻结点 1.3-14：Creator 抵押 R
      */
     function createTask(uint256 reward, string calldata taskURI) external returns (uint256) {
+        return _createTask(reward, taskURI, address(0), 0);
+    }
+
+    /**
+     * @notice 创建任务（带跨链奖励）
+     * @param reward 任务奖励金额
+     * @param taskURI 任务元数据 URI
+     * @param rewardAsset 跨链奖励资产地址
+     * @param rewardAmount 跨链奖励数量
+     * @return taskId 任务 ID
+     */
+    function createTaskWithReward(
+        uint256 reward, 
+        string calldata taskURI,
+        address rewardAsset,
+        uint256 rewardAmount
+    ) external returns (uint256) {
+        return _createTask(reward, taskURI, rewardAsset, rewardAmount);
+    }
+
+    /**
+     * @notice 内部创建任务实现
+     * @param reward 任务奖励金额
+     * @param taskURI 任务元数据 URI
+     * @param rewardAsset 跨链奖励资产地址
+     * @param rewardAmount 跨链奖励数量
+     * @return taskId 任务 ID
+     * @dev 冻结点 1.1-4：验证 isRegistered
+     * @dev 冻结点 1.2-10：reward > 0 && reward <= MAX_REWARD
+     * @dev 冻结点 1.3-14：Creator 抵押 reward + postFee
+     */
+    function _createTask(
+        uint256 reward,
+        string calldata taskURI,
+        address rewardAsset,
+        uint256 rewardAmount
+    ) internal returns (uint256) {
         // 注册验证（冻结点 1.1-4）
         if (!registerContract.isRegistered(msg.sender)) revert NotRegistered();
         
@@ -114,9 +153,14 @@ contract TaskEscrow {
         task.taskURI = taskURI;
         task.status = TaskStatus.Open;
         task.createdAt = block.timestamp;
+        // 设置新增字段
+        task.echoPostFee = TASK_POST_FEE;
+        task.rewardAsset = rewardAsset;
+        task.rewardAmount = rewardAmount;
         
-        // Creator 抵押 reward（冻结点 1.3-14）
-        require(echoToken.transferFrom(msg.sender, address(this), reward), "Transfer failed");
+        // Creator 抵押 reward + postFee（冻结点 1.3-14）
+        uint256 totalLock = reward + TASK_POST_FEE;
+        require(echoToken.transferFrom(msg.sender, address(this), totalLock), "Transfer failed");
         
         emit TaskCreated(taskId, msg.sender, reward, taskURI);
         return taskId;
@@ -134,8 +178,11 @@ contract TaskEscrow {
         if (msg.sender != task.creator) revert Unauthorized();
         if (task.status != TaskStatus.Open) revert InvalidStatus();
         
-        // 退回 Creator 抵押
+        // 立即锁定状态
         task.status = TaskStatus.Cancelled;
+        
+        // 先退 postFee，再退 reward
+        _refundPostFeeToCreator(taskId);
         require(echoToken.transfer(task.creator, task.reward), "Transfer failed");
         
         emit TaskCancelled(taskId, "Cancelled by creator");
@@ -153,8 +200,11 @@ contract TaskEscrow {
         if (task.status != TaskStatus.Open) revert InvalidStatus();
         if (block.timestamp <= task.createdAt + T_OPEN) revert Timeout();
         
-        // 退回 Creator 抵押
+        // 立即锁定状态
         task.status = TaskStatus.Cancelled;
+        
+        // 先退 postFee，再退 reward
+        _refundPostFeeToCreator(taskId);
         require(echoToken.transfer(task.creator, task.reward), "Transfer failed");
         
         emit TaskCancelled(taskId, "Timeout in Open");
@@ -222,18 +272,25 @@ contract TaskEscrow {
         uint256 fee = (task.reward * FEE_BPS) / 10000;
         uint256 helperReceived = task.reward - fee;
         
-        // 更新状态
+        // 立即锁定状态
         task.status = TaskStatus.Completed;
         
-        // 资金结算（冻结点 1.3-15）
+        // 原 2R 三步结算（冻结点 1.3-15）
         // 1. Helper 收到 0.98R（从 Creator 抵押）
-        require(echoToken.transfer(task.helper, helperReceived), "Transfer failed");
+        require(echoToken.transfer(task.helper, helperReceived), "Helper reward failed");
         
         // 2. 销毁 0.02R（从 Creator 抵押）
         echoToken.burn(fee);
         
         // 3. Helper 保证金全额退回
-        require(echoToken.transfer(task.helper, task.reward), "Transfer failed");
+        require(echoToken.transfer(task.helper, task.reward), "Helper deposit failed");
+        
+        // 4. postFee 处理（先清零再转账）
+        if (task.echoPostFee > 0) {
+            uint256 postFee = task.echoPostFee;
+            task.echoPostFee = 0;  // 先清零防重复
+            require(echoToken.transfer(task.helper, postFee), "PostFee failed");
+        }
         
         emit TaskCompleted(taskId, helperReceived, fee);
     }
@@ -260,13 +317,25 @@ contract TaskEscrow {
         uint256 fee = (task.reward * FEE_BPS) / 10000;
         uint256 helperReceived = task.reward - fee;
         
-        // 更新状态
+        // 立即锁定状态
         task.status = TaskStatus.Completed;
         
-        // 资金结算（同 confirmComplete）
-        require(echoToken.transfer(task.helper, helperReceived), "Transfer failed");
+        // 原 2R 三步结算（同 confirmComplete）
+        // 1. Helper 收到 0.98R
+        require(echoToken.transfer(task.helper, helperReceived), "Helper reward failed");
+        
+        // 2. 销毁 0.02R
         echoToken.burn(fee);
-        require(echoToken.transfer(task.helper, task.reward), "Transfer failed");
+        
+        // 3. Helper 保证金全额退回
+        require(echoToken.transfer(task.helper, task.reward), "Helper deposit failed");
+        
+        // 4. postFee 处理（先清零再转账）
+        if (task.echoPostFee > 0) {
+            uint256 postFee = task.echoPostFee;
+            task.echoPostFee = 0;  // 先清零防重复
+            require(echoToken.transfer(task.helper, postFee), "PostFee failed");
+        }
         
         emit TaskCompleted(taskId, helperReceived, fee);
     }
@@ -284,12 +353,13 @@ contract TaskEscrow {
         if (task.status != TaskStatus.InProgress) revert InvalidStatus();
         if (block.timestamp <= task.acceptedAt + T_PROGRESS) revert Timeout();
         
-        // 更新状态
+        // 立即锁定状态
         task.status = TaskStatus.Cancelled;
         
-        // 双方各拿回抵押（冻结点 1.3-18）
-        require(echoToken.transfer(task.creator, task.reward), "Transfer failed");
-        require(echoToken.transfer(task.helper, task.reward), "Transfer failed");
+        // 先退 postFee，再退双方抵押（冻结点 1.3-18）
+        _refundPostFeeToCreator(taskId);
+        require(echoToken.transfer(task.creator, task.reward), "Creator refund failed");
+        require(echoToken.transfer(task.helper, task.reward), "Helper refund failed");
         
         emit TaskCancelled(taskId, "Timeout in InProgress");
     }
@@ -339,16 +409,17 @@ contract TaskEscrow {
         // 时间窗检查（冻结点 1.4-21）
         if (block.timestamp > task.terminateRequestedAt + T_TERMINATE_RESPONSE) revert Timeout();
         
-        // 更新状态
+        // 立即锁定状态
         task.status = TaskStatus.Cancelled;
         
         // 重置终止请求字段
         task.terminateRequestedBy = address(0);
         task.terminateRequestedAt = 0;
         
-        // 双方各拿回抵押（冻结点 1.3-18）
-        require(echoToken.transfer(task.creator, task.reward), "Transfer failed");
-        require(echoToken.transfer(task.helper, task.reward), "Transfer failed");
+        // 先退 postFee，再退双方抵押（冻结点 1.3-18）
+        _refundPostFeeToCreator(taskId);
+        require(echoToken.transfer(task.creator, task.reward), "Creator refund failed");
+        require(echoToken.transfer(task.helper, task.reward), "Helper refund failed");
         
         emit TerminateAgreed(taskId);
         emit TaskCancelled(taskId, "Mutually terminated");
@@ -403,5 +474,49 @@ contract TaskEscrow {
         task.fixRequestedAt = block.timestamp;
         
         emit FixRequested(taskId);
+    }
+
+    // ============ 内部辅助函数 ============
+
+    /**
+     * @notice 退回 postFee 给 Creator（防重复）
+     * @param taskId 任务 ID
+     */
+    function _refundPostFeeToCreator(uint256 taskId) internal {
+        Task storage task = tasks[taskId];
+        if (task.echoPostFee > 0) {
+            uint256 postFee = task.echoPostFee;
+            task.echoPostFee = 0;  // 先清零防重复
+            require(echoToken.transfer(task.creator, postFee), "PostFee refund failed");
+        }
+    }
+
+    // ============ View 方法（供 Gateway 使用）============
+
+    /**
+     * @notice 获取任务创建者地址
+     * @param taskId 任务 ID
+     * @return creator 创建者地址
+     */
+    function getTaskCreator(uint256 taskId) external view returns (address) {
+        return tasks[taskId].creator;
+    }
+
+    /**
+     * @notice 获取任务执行者地址
+     * @param taskId 任务 ID
+     * @return helper 执行者地址
+     */
+    function getTaskHelper(uint256 taskId) external view returns (address) {
+        return tasks[taskId].helper;
+    }
+
+    /**
+     * @notice 获取任务状态
+     * @param taskId 任务 ID
+     * @return status 任务状态
+     */
+    function getTaskStatus(uint256 taskId) external view returns (TaskStatus) {
+        return tasks[taskId].status;
     }
 }
