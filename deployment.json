@@ -12,7 +12,7 @@
     "network": "localhost",
     "chainId": 31337,
     "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-    "deployedAt": "2025-12-14T12:22:52.185Z",
+    "deployedAt": "2025-12-15T01:36:59.210Z",
     "contracts": {
       "EOCHOToken": {
         "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
@@ -26,17 +26,17 @@
       },
       "TaskEscrow": {
         "address": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
-        "txHash": "0xc5c6774286dfc75b527f4674cad91323e2f0c8983658d9101791e12143050a50",
+        "txHash": "0x273bb778682929cd5fd2fb6814a46df8e9f805d57573f91777187a5f9dd6ceb7",
         "blockNumber": 4
       },
       "EverEchoGateway": {
         "address": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
-        "txHash": "0x2dc55f2c31180904ddc690e5518184217027290c27efe52b629eb049a0779c98",
+        "txHash": "0x41b9b5835db6a1c12a6c1b99a2ba1cf13963d57929aa341d79dffdb6d250b9b0",
         "blockNumber": 6
       },
       "MockZRC20": {
         "address": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
-        "txHash": "0x15bad4e1904aa376472b97f74ce589e6b749d71c493c6d00b395ad13941cbb04",
+        "txHash": "0x900f1cc31e5e27785cf46463bd3fd908332c278dd3fa06b6fdf2ac3184612521",
         "blockNumber": 7
       }
     },

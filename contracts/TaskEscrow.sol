@@ -268,31 +268,27 @@ contract TaskEscrow {
         if (msg.sender != task.creator) revert Unauthorized();
         if (task.status != TaskStatus.Submitted) revert InvalidStatus();
         
+        // 缓存关键数值（gas 优化 + 防重入）
+        uint256 reward = task.reward;
+        uint256 postFee = task.echoPostFee;
+        address helper = task.helper;
+        
         // 计算手续费（冻结点 1.2-9）
-        uint256 fee = (task.reward * FEE_BPS) / 10000;
-        uint256 helperReceived = task.reward - fee;
+        uint256 fee = (reward * FEE_BPS) / 10000;
+        uint256 helperReward = reward - fee;
         
-        // 立即锁定状态
+        // 立即锁定状态和清零 postFee（防重入）
         task.status = TaskStatus.Completed;
+        task.echoPostFee = 0;
         
-        // 原 2R 三步结算（冻结点 1.3-15）
-        // 1. Helper 收到 0.98R（从 Creator 抵押）
-        require(echoToken.transfer(task.helper, helperReceived), "Helper reward failed");
+        // 合并 Helper 转账（gas 优化）：0.98R + 保证金 + postFee
+        uint256 totalHelperPayout = helperReward + reward + postFee;
+        require(echoToken.transfer(helper, totalHelperPayout), "Helper payout failed");
         
-        // 2. 销毁 0.02R（从 Creator 抵押）
+        // 销毁 0.02R（从 Creator 抵押）
         echoToken.burn(fee);
         
-        // 3. Helper 保证金全额退回
-        require(echoToken.transfer(task.helper, task.reward), "Helper deposit failed");
-        
-        // 4. postFee 处理（先清零再转账）
-        if (task.echoPostFee > 0) {
-            uint256 postFee = task.echoPostFee;
-            task.echoPostFee = 0;  // 先清零防重复
-            require(echoToken.transfer(task.helper, postFee), "PostFee failed");
-        }
-        
-        emit TaskCompleted(taskId, helperReceived, fee);
+        emit TaskCompleted(taskId, helperReward, fee);
     }
 
     /**
@@ -317,25 +313,21 @@ contract TaskEscrow {
         uint256 fee = (task.reward * FEE_BPS) / 10000;
         uint256 helperReceived = task.reward - fee;
         
-        // 立即锁定状态
+        // 缓存关键数值（gas 优化 + 防重入）
+        uint256 reward = task.reward;
+        uint256 postFee = task.echoPostFee;
+        address helper = task.helper;
+        
+        // 立即锁定状态和清零 postFee（防重入）
         task.status = TaskStatus.Completed;
+        task.echoPostFee = 0;
         
-        // 原 2R 三步结算（同 confirmComplete）
-        // 1. Helper 收到 0.98R
-        require(echoToken.transfer(task.helper, helperReceived), "Helper reward failed");
+        // 合并 Helper 转账（gas 优化）：0.98R + 保证金 + postFee
+        uint256 totalHelperPayout = helperReceived + reward + postFee;
+        require(echoToken.transfer(helper, totalHelperPayout), "Helper payout failed");
         
-        // 2. 销毁 0.02R
+        // 销毁 0.02R（从 Creator 抵押）
         echoToken.burn(fee);
-        
-        // 3. Helper 保证金全额退回
-        require(echoToken.transfer(task.helper, task.reward), "Helper deposit failed");
-        
-        // 4. postFee 处理（先清零再转账）
-        if (task.echoPostFee > 0) {
-            uint256 postFee = task.echoPostFee;
-            task.echoPostFee = 0;  // 先清零防重复
-            require(echoToken.transfer(task.helper, postFee), "PostFee failed");
-        }
         
         emit TaskCompleted(taskId, helperReceived, fee);
     }
