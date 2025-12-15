@@ -23,8 +23,11 @@ export interface CreateTaskParams {
   title: string;
   description: string;
   contactsPlaintext: string; // 明文联系方式（从 Profile 获取）
-  reward: string; // ECHO 单位
+  reward: string; // ECHO 单位 - 原生 ECHO，参与 2R 结算（核心资金流）
   category?: string; // 任务分类（可选）
+  // Stage 4.1 语义边界：跨链奖励占位字段（当前不转账）
+  rewardAsset?: string; // 跨链奖励资产地址（占位，不做真实转账）
+  rewardAmount?: string; // 跨链奖励数量（占位，不做真实转账）
 }
 
 export function useCreateTask(
@@ -98,12 +101,14 @@ export function useCreateTask(
       }
 
       const rewardWei = ethers.parseUnits(params.reward, 18);
+      const postFeeWei = ethers.parseUnits("10", 18); // TASK_POST_FEE constant
+      const totalRequired = rewardWei + postFeeWei;
 
-      // 2. 检查余额（冻结点 1.3-14）
+      // 2. 检查余额（冻结点 1.3-14）- 需要 reward + postFee
       setStep('Checking balance...');
-      const hasBalance = await checkBalance(address, rewardWei);
+      const hasBalance = await checkBalance(address, totalRequired);
       if (!hasBalance) {
-        throw new Error(`Insufficient balance. You need at least ${params.reward} ECHO`);
+        throw new Error(`Insufficient balance. You need at least ${ethers.formatEther(totalRequired)} ECHO (${params.reward} reward + 10 postFee)`);
       }
 
       // 3. 获取下一个 taskId（从合约读取 taskCounter）
@@ -121,8 +126,8 @@ export function useCreateTask(
       // 防御性检查：确保 nextTaskId 在链上不存在
       try {
         const existingTask = await contract.tasks(nextTaskId);
-        // tasks() 返回一个 tuple，creator 是第二个元素
-        if (existingTask[1] !== ethers.ZeroAddress) {
+        // Stage 4: 使用 named struct output 而不是 tuple index
+        if (existingTask.creator !== ethers.ZeroAddress) {
           throw new Error(
             `Task ${nextTaskId} already exists on chain. ` +
             `This should not happen. Please refresh and try again.`
@@ -137,7 +142,7 @@ export function useCreateTask(
         }
       }
 
-      // 4. 授权合约转移 ECHO（冻结点 1.3-14）
+      // 4. 授权合约转移 ECHO（冻结点 1.3-14）- 授权 totalRequired
       setStep('Approving token transfer...');
       const tokenContract = new ethers.Contract(
         EOCHO_TOKEN_ADDRESS,
@@ -145,7 +150,7 @@ export function useCreateTask(
         signer
       );
       
-      const approveTx = await tokenContract.approve(TASK_ESCROW_ADDRESS, rewardWei);
+      const approveTx = await tokenContract.approve(TASK_ESCROW_ADDRESS, totalRequired);
       console.log('Approve transaction sent:', approveTx.hash);
       await approveTx.wait();
       console.log('Approve transaction confirmed');
@@ -198,7 +203,24 @@ export function useCreateTask(
 
       // 6. 调用链上 createTask（只有 POST 成功才会执行到这里）
       setStep('Creating task on blockchain...');
-      const tx = await contract.createTask(rewardWei, taskURI!);
+      
+      // Stage 4: 选择合适的创建函数
+      let tx;
+      if (params.rewardAsset && params.rewardAmount && params.rewardAsset !== ethers.ZeroAddress) {
+        // 使用 createTaskWithReward 支持跨链占位
+        const rewardAmountWei = ethers.parseUnits(params.rewardAmount, 18);
+        tx = await contract.createTaskWithReward(rewardWei, taskURI!, params.rewardAsset, rewardAmountWei);
+        console.log('Creating task with cross-chain reward placeholder:', {
+          reward: params.reward,
+          rewardAsset: params.rewardAsset,
+          rewardAmount: params.rewardAmount
+        });
+      } else {
+        // 使用标准 createTask
+        tx = await contract.createTask(rewardWei, taskURI!);
+        console.log('Creating standard task with ECHO reward only');
+      }
+      
       setTxHash(tx.hash);
       console.log('Transaction sent:', tx.hash);
 

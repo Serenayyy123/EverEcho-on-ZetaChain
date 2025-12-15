@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useWallet } from '../hooks/useWallet';
 import { useProfile } from '../hooks/useProfile';
@@ -10,6 +10,13 @@ import { Input, TextArea } from '../components/ui/Input';
 import { Alert } from '../components/ui/Alert';
 import { NetworkGuard } from '../components/ui/NetworkGuard';
 import { CATEGORY_OPTIONS, TaskCategoryKey } from '../types/category';
+import { AITaskDraftGenerator } from '../components/ai/AITaskDraftGenerator';
+import { AIRewardSuggestionComponent } from '../components/ai/AIRewardSuggestion';
+import { AITaskDraft } from '../hooks/useAIService';
+import { FeeExplanationModal } from '../components/ui/FeeExplanationModal';
+import { AIRiskWarning, AIFieldWarning } from '../components/ui/AIRiskWarning';
+import { BetaRewardSelector } from '../components/ui/BetaRewardSelector';
+import { getDefaultReward, isBetaMode, collectBetaAnalytics } from '../config/betaConfig';
 
 /**
  * 发布任务页面（P0-F4）
@@ -30,7 +37,177 @@ export function PublishTask() {
   const [reward, setReward] = useState('');
   const [category, setCategory] = useState<TaskCategoryKey | ''>(''); // Category is optional
 
+  // Stage 4.7: Cross-chain reward fields
+  const [crossChainRewardAsset, setCrossChainRewardAsset] = useState('');
+  const [crossChainRewardAmount, setCrossChainRewardAmount] = useState('');
+
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+
+  // UX Hardening: Fee explanation and AI risk management
+  const [showFeeModal, setShowFeeModal] = useState(false);
+  const [showAIWarning, setShowAIWarning] = useState(false);
+  const [aiGeneratedFields, setAiGeneratedFields] = useState<string[]>([]);
+  const [pendingSubmit, setPendingSubmit] = useState(false);
+
+  // Stage 4.6: Beta reward selection tracking
+  const [rewardSource, setRewardSource] = useState<'default' | 'suggestion' | 'custom' | 'ai'>('default');
+
+  // Stage 4.6: Set Beta default reward on component mount
+  useEffect(() => {
+    if (isBetaMode() && !reward) {
+      const defaultReward = getDefaultReward().toString();
+      setReward(defaultReward);
+      collectBetaAnalytics('reward_selected', {
+        rewardAmount: getDefaultReward(),
+        wasDefault: true,
+        source: 'default'
+      });
+    }
+  }, [reward]);
+
+  // AI Integration handlers
+  const handleAIDraftGenerated = (draft: AITaskDraft) => {
+    setTitle(draft.title);
+    setDescription(draft.description);
+    setReward(draft.suggestedRewardEcho.toString());
+    
+    // Map AI category to our category options if possible
+    if (draft.category) {
+      const matchingCategory = CATEGORY_OPTIONS.find(
+        opt => opt.label.toLowerCase().includes(draft.category!.toLowerCase())
+      );
+      if (matchingCategory) {
+        setCategory(matchingCategory.key);
+      }
+    }
+    
+    // Track AI-generated fields for risk warning
+    const generatedFields = ['title', 'description', 'reward'];
+    if (draft.category) generatedFields.push('category');
+    setAiGeneratedFields(generatedFields);
+    
+    // Clear any existing form errors
+    setFormErrors({});
+  };
+
+  const handleAIRewardSuggested = (suggestedReward: string) => {
+    setReward(suggestedReward);
+    setRewardSource('ai');
+    
+    // Track AI-suggested reward
+    if (!aiGeneratedFields.includes('reward')) {
+      setAiGeneratedFields(prev => [...prev, 'reward']);
+    }
+    
+    // Stage 4.6: Track AI suggestion usage
+    collectBetaAnalytics('ai_suggestion_used', {
+      rewardAmount: parseFloat(suggestedReward),
+      source: 'ai'
+    });
+    
+    if (formErrors.reward) {
+      setFormErrors(prev => ({ ...prev, reward: '' }));
+    }
+  };
+
+  // Stage 4.6: Handle reward changes with source tracking
+  const handleRewardChange = (newReward: string) => {
+    setReward(newReward);
+    
+    // Clear form errors
+    if (formErrors.reward) {
+      setFormErrors(prev => ({ ...prev, reward: '' }));
+    }
+    
+    // Track custom modifications
+    const numValue = parseFloat(newReward);
+    if (!isNaN(numValue) && numValue !== getDefaultReward()) {
+      setRewardSource('custom');
+      collectBetaAnalytics('default_modified', {
+        rewardAmount: numValue,
+        wasDefault: false,
+        source: 'custom'
+      });
+    }
+  };
+
+  // UX Hardening: Enhanced form submission with AI risk check
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+      return;
+    }
+
+    // If AI-generated content exists, show risk warning first
+    if (aiGeneratedFields.length > 0 && !pendingSubmit) {
+      setShowAIWarning(true);
+      return;
+    }
+
+    // Proceed with actual submission
+    await proceedWithSubmission();
+  };
+
+  const proceedWithSubmission = async () => {
+    try {
+      // Use Profile contact info and submit
+      const txHash = await createTask({
+        title,
+        description,
+        contactsPlaintext: profile!.contacts!,
+        reward,
+        category: category || undefined,
+        // Stage 4.7: Cross-chain reward support
+        rewardAsset: crossChainRewardAsset || undefined,
+        rewardAmount: crossChainRewardAmount || undefined,
+      });
+
+    if (txHash) {
+      // Stage 4.6: Track successful task creation
+      collectBetaAnalytics('task_created', {
+        rewardAmount: parseFloat(reward),
+        wasDefault: parseFloat(reward) === getDefaultReward(),
+        source: rewardSource
+      });
+
+      // Reset AI tracking
+      setAiGeneratedFields([]);
+      setPendingSubmit(false);
+      
+      // Success redirect
+      setTimeout(() => {
+        navigate('/tasks');
+      }, 2000);
+    }
+    } catch (error) {
+      // Stage 4.6: Track task creation failures
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const isInsufficientBalance = errorMessage.toLowerCase().includes('insufficient') || 
+                                   errorMessage.toLowerCase().includes('balance');
+      
+      collectBetaAnalytics('task_failed', {
+        rewardAmount: parseFloat(reward),
+        failureReason: isInsufficientBalance ? 'insufficient_balance' : 'other',
+        source: rewardSource
+      });
+      
+      // Re-throw error to maintain existing error handling
+      throw error;
+    }
+  };
+
+  const handleAIWarningConfirm = () => {
+    setShowAIWarning(false);
+    setPendingSubmit(true);
+    // Trigger actual submission
+    proceedWithSubmission();
+  };
+
+  const handleAIWarningCancel = () => {
+    setShowAIWarning(false);
+    setPendingSubmit(false);
+  };
 
   // 表单验证
   const validateForm = (): boolean => {
@@ -64,30 +241,7 @@ export function PublishTask() {
     return Object.keys(errors).length === 0;
   };
 
-  // 提交表单
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
 
-    if (!validateForm()) {
-      return;
-    }
-
-    // 使用 Profile 中的联系方式
-    const txHash = await createTask({
-      title,
-      description,
-      contactsPlaintext: profile!.contacts!, // 传递明文联系方式
-      reward,
-      category: category || undefined, // Optional category
-    });
-
-    if (txHash) {
-      // 成功后跳转到任务广场
-      setTimeout(() => {
-        navigate('/tasks');
-      }, 2000);
-    }
-  };
 
   if (!address) {
     return (
@@ -110,54 +264,125 @@ export function PublishTask() {
               Create a new task and find helpers in the EverEcho marketplace
             </p>
 
-            <form onSubmit={handleSubmit} style={styles.form}>
-              <Input
-                label="Title *"
-                value={title}
-                onChange={(e) => {
-                  setTitle(e.target.value);
-                  if (formErrors.title) {
-                    setFormErrors(prev => ({ ...prev, title: '' }));
-                  }
-                }}
-                placeholder="Enter task title"
-                error={formErrors.title}
+            <form onSubmit={handleFormSubmit} style={styles.form}>
+              {/* AI Task Draft Generator */}
+              <AITaskDraftGenerator
+                onDraftGenerated={handleAIDraftGenerated}
                 disabled={loading}
               />
 
-              <TextArea
-                label="Description *"
-                value={description}
-                onChange={(e) => {
-                  setDescription(e.target.value);
-                  if (formErrors.description) {
-                    setFormErrors(prev => ({ ...prev, description: '' }));
-                  }
-                }}
-                placeholder="Describe the task in detail"
-                rows={4}
-                error={formErrors.description}
-                disabled={loading}
-              />
+              <AIFieldWarning fieldName="title" isAIGenerated={aiGeneratedFields.includes('title')}>
+                <Input
+                  label="Title *"
+                  value={title}
+                  onChange={(e) => {
+                    setTitle(e.target.value);
+                    if (formErrors.title) {
+                      setFormErrors(prev => ({ ...prev, title: '' }));
+                    }
+                  }}
+                  placeholder="Enter task title"
+                  error={formErrors.title}
+                  disabled={loading}
+                />
+              </AIFieldWarning>
 
-              <Input
-                label="Reward (ECHO) *"
-                type="number"
-                value={reward}
-                onChange={(e) => {
-                  setReward(e.target.value);
-                  if (formErrors.reward) {
-                    setFormErrors(prev => ({ ...prev, reward: '' }));
-                  }
-                }}
-                placeholder="Enter reward amount"
-                hint={`Maximum: ${MAX_REWARD} ECHO`}
-                error={formErrors.reward}
-                disabled={loading}
-                step="0.01"
-                min="0"
-                max={MAX_REWARD}
-              />
+              <AIFieldWarning fieldName="description" isAIGenerated={aiGeneratedFields.includes('description')}>
+                <TextArea
+                  label="Description *"
+                  value={description}
+                  onChange={(e) => {
+                    setDescription(e.target.value);
+                    if (formErrors.description) {
+                      setFormErrors(prev => ({ ...prev, description: '' }));
+                    }
+                  }}
+                  placeholder="Describe the task in detail"
+                  rows={4}
+                  error={formErrors.description}
+                  disabled={loading}
+                />
+              </AIFieldWarning>
+
+              <div>
+                <AIFieldWarning fieldName="reward" isAIGenerated={aiGeneratedFields.includes('reward')}>
+                  <div style={styles.rewardInputContainer}>
+                    <Input
+                      label="Reward (ECHO) *"
+                      type="number"
+                      value={reward}
+                      onChange={(e) => handleRewardChange(e.target.value)}
+                      placeholder={isBetaMode() ? `Enter reward amount (Beta default: ${getDefaultReward()})` : "Enter reward amount"}
+                      hint={`Maximum: ${MAX_REWARD} ECHO`}
+                      error={formErrors.reward}
+                      disabled={loading}
+                      step="0.01"
+                      min="0"
+                      max={MAX_REWARD}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowFeeModal(true)}
+                      style={styles.feeHelpButton}
+                      title="How do fees work?"
+                    >
+                      💰 ?
+                    </button>
+                  </div>
+
+                  {/* Stage 4.6: Beta Reward Selector */}
+                  <BetaRewardSelector
+                    value={reward}
+                    onChange={handleRewardChange}
+                    disabled={loading}
+                    onSourceChange={setRewardSource}
+                  />
+                </AIFieldWarning>
+
+                {/* Fee Structure Preview */}
+                {reward && parseFloat(reward) > 0 && (
+                  <div style={styles.feePreview}>
+                    <div style={styles.feePreviewHeader}>
+                      <span style={styles.feePreviewTitle}>💸 Cost Breakdown</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowFeeModal(true)}
+                        style={styles.feeDetailsLink}
+                      >
+                        View Details
+                      </button>
+                    </div>
+                    <div style={styles.feeBreakdown}>
+                      <div style={styles.feeRow}>
+                        <span>Task Reward:</span>
+                        <span>{parseFloat(reward).toFixed(2)} ECHO</span>
+                      </div>
+                      <div style={styles.feeRow}>
+                        <span>Posting Fee:</span>
+                        <span>10 ECHO</span>
+                      </div>
+                      <div style={styles.feeTotalRow}>
+                        <span>You Pay Total:</span>
+                        <span>{(parseFloat(reward) + 10).toFixed(2)} ECHO</span>
+                      </div>
+                      <div style={styles.helperEarningsRow}>
+                        <span>Helper Will Receive:</span>
+                        <span style={styles.helperAmount}>
+                          {(parseFloat(reward) * 0.98 + parseFloat(reward) + 10).toFixed(0)} ECHO
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* AI Reward Suggestion */}
+                <AIRewardSuggestionComponent
+                  description={description}
+                  currentReward={reward}
+                  onRewardSuggested={handleAIRewardSuggested}
+                  disabled={loading}
+                />
+              </div>
 
               {/* Category Selection (Optional) */}
               <div style={styles.formGroup}>
@@ -177,6 +402,44 @@ export function PublishTask() {
                 </select>
                 <p style={styles.hint}>
                   Helps others find your task more easily
+                </p>
+              </div>
+
+              {/* Stage 4.7: Cross-chain Reward (Optional) */}
+              <div style={styles.crossChainSection}>
+                <h3 style={styles.crossChainTitle}>🌉 Cross-chain Reward (Optional)</h3>
+                <div style={styles.crossChainDisclaimer}>
+                  <span style={styles.disclaimerIcon}>⚠️</span>
+                  <span style={styles.disclaimerText}>
+                    ZRC20 tokens on Athens chain. Bridge back to original chain manually if needed.
+                  </span>
+                </div>
+                
+                <div style={styles.formGroup}>
+                  <Input
+                    label="Token Address (ZRC20)"
+                    value={crossChainRewardAsset}
+                    onChange={(e) => setCrossChainRewardAsset(e.target.value)}
+                    placeholder="0x... (leave empty for ECHO only)"
+                    disabled={loading}
+                  />
+                </div>
+
+                <div style={styles.formGroup}>
+                  <Input
+                    label="Cross-chain Amount"
+                    type="number"
+                    value={crossChainRewardAmount}
+                    onChange={(e) => setCrossChainRewardAmount(e.target.value)}
+                    placeholder="Additional reward amount"
+                    disabled={loading}
+                    step="0.01"
+                    min="0"
+                  />
+                </div>
+
+                <p style={styles.hint}>
+                  Cross-chain rewards are deposited separately after task creation
                 </p>
               </div>
 
@@ -247,6 +510,20 @@ export function PublishTask() {
             </form>
           </div>
         </Card>
+
+        {/* UX Hardening Modals */}
+        <FeeExplanationModal
+          isOpen={showFeeModal}
+          onClose={() => setShowFeeModal(false)}
+          rewardAmount={parseFloat(reward) || 100}
+        />
+
+        <AIRiskWarning
+          isVisible={showAIWarning}
+          aiGeneratedFields={aiGeneratedFields}
+          onConfirm={handleAIWarningConfirm}
+          onCancel={handleAIWarningCancel}
+        />
       </NetworkGuard>
     </DarkPageLayout>
   );
@@ -355,5 +632,111 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#9CA3AF',
     fontWeight: 500,
     margin: 0,
+  },
+  // UX Hardening styles
+  rewardInputContainer: {
+    position: 'relative',
+  },
+  feeHelpButton: {
+    position: 'absolute',
+    top: '28px',
+    right: '8px',
+    background: 'none',
+    border: 'none',
+    fontSize: '16px',
+    cursor: 'pointer',
+    padding: '4px',
+    borderRadius: '4px',
+    transition: 'background-color 0.2s',
+  },
+  feePreview: {
+    marginTop: '12px',
+    padding: '16px',
+    backgroundColor: 'rgba(59, 130, 246, 0.05)',
+    border: '1px solid rgba(59, 130, 246, 0.2)',
+    borderRadius: '8px',
+  },
+  feePreviewHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '12px',
+  },
+  feePreviewTitle: {
+    fontSize: '14px',
+    fontWeight: 600,
+    color: '#1A1A1A',
+  },
+  feeDetailsLink: {
+    background: 'none',
+    border: 'none',
+    color: '#2563EB',
+    fontSize: '12px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    textDecoration: 'underline',
+  },
+  feeBreakdown: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+  },
+  feeRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    fontSize: '13px',
+    color: '#4B5563',
+  },
+  feeTotalRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    fontSize: '14px',
+    fontWeight: 600,
+    color: '#1A1A1A',
+    paddingTop: '6px',
+    borderTop: '1px solid rgba(59, 130, 246, 0.2)',
+  },
+  helperEarningsRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    fontSize: '13px',
+    color: '#10B981',
+    fontWeight: 500,
+    paddingTop: '4px',
+  },
+  helperAmount: {
+    fontWeight: 700,
+  },
+  // Stage 4.7: Cross-chain reward styles
+  crossChainSection: {
+    padding: '20px',
+    backgroundColor: 'rgba(59, 130, 246, 0.05)',
+    border: '1px solid rgba(59, 130, 246, 0.2)',
+    borderRadius: '12px',
+    marginTop: '16px',
+  },
+  crossChainTitle: {
+    fontSize: '16px',
+    fontWeight: 600,
+    color: '#1A1A1A',
+    margin: '0 0 12px 0',
+  },
+  crossChainDisclaimer: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '8px 12px',
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    border: '1px solid rgba(245, 158, 11, 0.3)',
+    borderRadius: '6px',
+    marginBottom: '16px',
+  },
+  disclaimerIcon: {
+    fontSize: '12px',
+  },
+  disclaimerText: {
+    fontSize: '11px',
+    color: '#92400E',
+    fontWeight: 500,
   },
 };

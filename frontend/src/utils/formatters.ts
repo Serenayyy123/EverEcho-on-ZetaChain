@@ -60,3 +60,85 @@ export function isTimeout(timestamp: number, duration: number): boolean {
   const now = Math.floor(Date.now() / 1000);
   return now > timestamp + duration;
 }
+/**
+ * Stage 4: 跨链奖励显示工具
+ */
+
+/**
+ * 格式化跨链奖励显示
+ */
+export function formatCrossChainReward(rewardAsset: string, rewardAmount: string): {
+  hasReward: boolean;
+  displayText: string;
+  isPlaceholder: boolean;
+} {
+  const isZeroAddress = !rewardAsset || rewardAsset === ethers.ZeroAddress;
+  const isZeroAmount = !rewardAmount || rewardAmount === '0' || rewardAmount === '0.0';
+  
+  if (isZeroAddress || isZeroAmount) {
+    return {
+      hasReward: false,
+      displayText: '跨链奖励：未设置（占位）',
+      isPlaceholder: true,
+    };
+  }
+  
+  return {
+    hasReward: true,
+    displayText: `跨链奖励（占位）：${rewardAmount} @ ${formatAddress(rewardAsset)}`,
+    isPlaceholder: true,
+  };
+}
+
+/**
+ * 获取跨链奖励免责声明
+ */
+export function getCrossChainDisclaimer(): string {
+  return '跨链奖励当前仅为展示/记录，占位功能，本阶段不做真实跨链转账。';
+}
+
+/**
+ * 计算任务总成本（reward + postFee）
+ */
+export function calculateTaskTotalCost(reward: string): {
+  rewardECHO: string;
+  postFeeECHO: string;
+  totalECHO: string;
+  totalWei: bigint;
+} {
+  const rewardWei = ethers.parseUnits(reward, 18);
+  const postFeeWei = ethers.parseUnits("10", 18); // TASK_POST_FEE constant
+  const totalWei = rewardWei + postFeeWei;
+  
+  return {
+    rewardECHO: reward,
+    postFeeECHO: "10",
+    totalECHO: ethers.formatEther(totalWei),
+    totalWei,
+  };
+}
+
+/**
+ * 格式化任务收益说明（给 Helper）
+ */
+export function formatHelperEarnings(reward: string): {
+  rewardReturn: string; // 保证金退回
+  actualReward: string; // 实际奖励（扣除2%手续费）
+  postFee: string; // 发布费
+  totalEarnings: string; // 总收益
+  burnFee: string; // 销毁费用
+} {
+  const rewardWei = ethers.parseUnits(reward, 18);
+  const burnFeeWei = rewardWei * BigInt(200) / BigInt(10000); // 2%
+  const actualRewardWei = rewardWei - burnFeeWei;
+  const postFeeWei = ethers.parseUnits("10", 18);
+  const totalEarningsWei = actualRewardWei + rewardWei + postFeeWei; // 98 + 100 + 10
+  
+  return {
+    rewardReturn: ethers.formatEther(rewardWei), // 100 ECHO 保证金退回
+    actualReward: ethers.formatEther(actualRewardWei), // 98 ECHO 实际奖励
+    postFee: "10", // 10 ECHO 发布费
+    totalEarnings: ethers.formatEther(totalEarningsWei), // 208 ECHO 总收益
+    burnFee: ethers.formatEther(burnFeeWei), // 2 ECHO 销毁
+  };
+}

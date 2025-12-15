@@ -94,6 +94,10 @@ export function useTaskHistory(
                 terminateRequestedAt: Number(taskData.terminateRequestedAt),
                 fixRequested: taskData.fixRequested,
                 fixRequestedAt: Number(taskData.fixRequestedAt),
+                // Stage 4: 新增跨链字段
+                echoPostFee: ethers.formatEther(taskData.echoPostFee),
+                rewardAsset: taskData.rewardAsset,
+                rewardAmount: ethers.formatEther(taskData.rewardAmount),
               };
 
               // 获取链下元数据

@@ -32,6 +32,10 @@ export interface Task {
   terminateRequestedAt: number;
   fixRequested: boolean;
   fixRequestedAt: number;
+  // Stage 4: 新增跨链字段
+  echoPostFee: string;
+  rewardAsset: string;
+  rewardAmount: string;
   metadata?: TaskData;
   metadataError?: boolean; // 元数据加载失败标记
 }
@@ -127,6 +131,10 @@ export function useTasks(provider: ethers.Provider | null, chainId: number | nul
         terminateRequestedAt: Number(taskData.terminateRequestedAt),
         fixRequested: taskData.fixRequested,
         fixRequestedAt: Number(taskData.fixRequestedAt),
+        // Stage 4: 新增跨链字段
+        echoPostFee: ethers.formatEther(taskData.echoPostFee),
+        rewardAsset: taskData.rewardAsset,
+        rewardAmount: ethers.formatEther(taskData.rewardAmount),
         metadata,
         metadataError,
       };
@@ -213,6 +221,10 @@ export function useTask(
         terminateRequestedAt: Number(taskData.terminateRequestedAt),
         fixRequested: taskData.fixRequested,
         fixRequestedAt: Number(taskData.fixRequestedAt),
+        // Stage 4: 新增跨链字段
+        echoPostFee: ethers.formatEther(taskData.echoPostFee),
+        rewardAsset: taskData.rewardAsset,
+        rewardAmount: ethers.formatEther(taskData.rewardAmount),
         metadata,
         metadataError,
       });

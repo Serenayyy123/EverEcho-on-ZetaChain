@@ -21,12 +21,13 @@ export const TaskStatusLabels: Record<TaskStatus, string> = {
 
 /**
  * 链上任务数据（从合约读取）
+ * Stage 4: 新增 3 个跨链字段（echoPostFee, rewardAsset, rewardAmount）
  */
 export interface OnChainTask {
   taskId: string;
   creator: string;
   helper: string;
-  reward: string; // wei
+  reward: string; // wei - 本链 ECHO（核心 2R 资金流）
   taskURI: string;
   status: TaskStatus;
   createdAt: number;
@@ -36,6 +37,10 @@ export interface OnChainTask {
   terminateRequestedAt: number;
   fixRequested: boolean;
   fixRequestedAt: number;
+  // Stage 4: 新增字段（与合约 tasks() 返回的 tuple 顺序一致）
+  echoPostFee: string; // wei - 发布费用（10 ECHO）
+  rewardAsset: string; // address - 跨链奖励资产地址（占位）
+  rewardAmount: string; // wei - 跨链奖励数量（占位）
 }
 
 /**
@@ -51,6 +56,12 @@ export interface TaskMetadata {
 
 /**
  * 完整任务数据（链上 + 链下）
+ * 
+ * Stage 4.1 语义边界说明：
+ * - reward: 原生 ECHO，参与 2R 结算（核心资金流）
+ * - rewardAsset/rewardAmount: 跨链奖励占位字段，当前不转账
+ * - echoPostFee: 固定 10 ECHO 发布费（creator → helper）
+ * - Gateway 当前仅记录状态，不进行真实跨链转账
  */
 export interface Task extends OnChainTask {
   metadata?: TaskMetadata;

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useWallet } from '../hooks/useWallet';
 import { Alert } from '../components/ui/Alert';
 import { HowItWorks } from '../components/home/HowItWorks';
+import { AIIntegrationSummary } from '../components/ai/AIIntegrationSummary';
 
 /**
  * 首页 - 钱包连接
@@ -161,6 +162,7 @@ export function Home() {
 
       {/* How It Works流程图 - 右侧 */}
       <div style={styles.rightSection}>
+        <AIIntegrationSummary showDetails={false} />
         <HowItWorks />
       </div>
     </div>

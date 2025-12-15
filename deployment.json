@@ -7,5 +7,68 @@
     "EOCHOToken": "0xe7940e81dDf4d6415f2947829938f9A24B0ad35d",
     "Register": "0xae8d98a0AF4ECe6240949bB74E03A9281Ce58151",
     "TaskEscrow": "0x9AFBBD83E8B0F4169EDa1bE667BB36a0565cBF28"
+  },
+  "localhost": {
+    "network": "localhost",
+    "chainId": 31337,
+    "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "deployedAt": "2025-12-14T12:22:52.185Z",
+    "contracts": {
+      "EOCHOToken": {
+        "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+        "txHash": "0xc701ba8451766012c22651c2c41e3cb59dc3c3c44a4c22d918f1ff92123e97d1",
+        "blockNumber": 1
+      },
+      "Register": {
+        "address": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+        "txHash": "0x72320bd06e06904a174c2148186f4f2a0dea2a006339c14162ce0c3732173015",
+        "blockNumber": 2
+      },
+      "TaskEscrow": {
+        "address": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
+        "txHash": "0xc5c6774286dfc75b527f4674cad91323e2f0c8983658d9101791e12143050a50",
+        "blockNumber": 4
+      },
+      "EverEchoGateway": {
+        "address": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
+        "txHash": "0x2dc55f2c31180904ddc690e5518184217027290c27efe52b629eb049a0779c98",
+        "blockNumber": 6
+      },
+      "MockZRC20": {
+        "address": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
+        "txHash": "0x15bad4e1904aa376472b97f74ce589e6b749d71c493c6d00b395ad13941cbb04",
+        "blockNumber": 7
+      }
+    },
+    "rpc": "http://localhost:8545"
+  },
+  "zetachainAthens": {
+    "network": "zetachainAthens",
+    "chainId": 7001,
+    "deployer": "0x099Fb550F7Dc5842621344c5a1678F943eEF3488",
+    "deployedAt": "2025-12-13T05:05:18.621Z",
+    "contracts": {
+      "EOCHOToken": {
+        "address": "0xE0e8CD2F3a8bd6241B09798DEe98f1c777537b4D",
+        "txHash": "0x7858c473fbc5b27b36742ae29144e675129e776df67b0ddaf7feb3060ab1b7a6",
+        "blockNumber": 14771712
+      },
+      "Register": {
+        "address": "0x2fD2B2F4D965ffEF9B66dfBc78285AB76b290eaA",
+        "txHash": "0x073a1d2a668079ec207ed092a1c3af7a8d25e237d975e59a52f27f33e99f2e0f",
+        "blockNumber": 14771714
+      },
+      "TaskEscrow": {
+        "address": "0x9ee8255e1D566Fa085DFFcE26ee1B8587cB47FD0",
+        "txHash": "0xef5ddcdc69e3384d94266e588cf04be48a8554fd5ce8d5f7a23ae7e6c76310be",
+        "blockNumber": 14771719
+      },
+      "EverEchoGateway": {
+        "address": "0x0AF4DB65C3DfEE92a910661367A10CF2420aC137",
+        "txHash": "0xddc8aa4fd78e6650b4bcd0e24a5894734af08138bfd80ad4e03438cdfe2eb2f2",
+        "blockNumber": 14771725
+      }
+    },
+    "rpc": "https://zetachain-athens-evm.blockpi.network/v1/rpc/public"
   }
 }

@@ -18,6 +18,9 @@ import { TerminateRequest } from '../components/TerminateRequest';
 import { RequestFixUI } from '../components/RequestFixUI';
 import { ContactsDisplay } from '../components/ContactsDisplay';
 import { TaskDetailHero } from '../components/taskdetail/TaskDetailHero';
+import { AIHelperProfileDisplay } from '../components/ai/AIHelperProfileDisplay';
+import { HelperEarningsBreakdown } from '../components/ui/HelperEarningsBreakdown';
+import { CrossChainRewardDisplay } from '../components/ui/CrossChainRewardDisplay';
 
 /**
  * 任务详情页（P0-F2 + P1-F5 + P1-F6 + P1-F7）
@@ -60,6 +63,10 @@ export function TaskDetail() {
           terminateRequestedAt: Number(taskData.terminateRequestedAt),
           fixRequested: taskData.fixRequested,
           fixRequestedAt: Number(taskData.fixRequestedAt),
+          // Stage 4: 新增跨链字段
+          echoPostFee: ethers.formatEther(taskData.echoPostFee),
+          rewardAsset: taskData.rewardAsset,
+          rewardAmount: ethers.formatEther(taskData.rewardAmount),
         };
 
         // 获取元数据
@@ -470,6 +477,27 @@ export function TaskDetail() {
                 onSuccess={() => window.location.reload()}
               />
             )}
+
+            {/* AI Helper Profile Suggestion */}
+            <AIHelperProfileDisplay task={task} disabled={actionLoading} />
+
+            {/* Helper Earnings Breakdown - Show for Open tasks */}
+            {task.status === TaskStatus.Open && (
+              <HelperEarningsBreakdown 
+                rewardAmount={parseFloat(task.reward)} 
+                compact={true}
+              />
+            )}
+
+            {/* Cross-chain Reward Display */}
+            <CrossChainRewardDisplay
+              taskId={task.taskId}
+              rewardAsset={task.rewardAsset}
+              rewardAmount={task.rewardAmount}
+              taskStatus={task.status}
+              isCreator={address === task.creator}
+              isHelper={address === task.helper}
+            />
 
             {/* Actions */}
             {renderActions()}

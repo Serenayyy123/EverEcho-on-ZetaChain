@@ -7,6 +7,7 @@ import profileRoutes from './routes/profile';
 import taskRoutes from './routes/task';
 import contactsRoutes from './routes/contacts';
 import healthzRoutes from './routes/healthz';
+import aiRoutes from './routes/ai';
 import { initEventListenerService } from './services/eventListenerService';
 import { initChainSyncService } from './services/chainSyncService';
 import { getTask } from './services/taskService';
@@ -112,6 +113,7 @@ app.use(express.json());
 app.use('/api/profile', profileRoutes);
 app.use('/api/task', taskRoutes);
 app.use('/api/contacts', contactsRoutes);
+app.use('/api/ai', aiRoutes);
 app.use('/healthz', healthzRoutes);
 
 // 兼容链上 taskURI: /task/{id}.json
