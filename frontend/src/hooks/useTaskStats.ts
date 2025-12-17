@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ethers, Contract } from 'ethers';
-import { TASK_ESCROW_ADDRESS } from '../contracts/addresses';
+import { getContractAddresses } from '../contracts/addresses';
 import TaskEscrowABI from '../contracts/TaskEscrow.json';
 
 /**
@@ -16,7 +16,8 @@ export interface TaskStats {
 
 export function useTaskStats(
   provider: ethers.Provider | null,
-  address: string | null
+  address: string | null,
+  chainId?: number | null
 ): {
   stats: TaskStats;
   loading: boolean;
@@ -28,7 +29,7 @@ export function useTaskStats(
   const [error, setError] = useState<string | null>(null);
 
   const loadStats = useCallback(async () => {
-    if (!provider || !address) {
+    if (!provider || !address || !chainId) {
       setStats({ createdCount: 0, helpedCount: 0 });
       setLoading(false);
       return;
@@ -38,8 +39,9 @@ export function useTaskStats(
     setError(null);
 
     try {
+      const addresses = getContractAddresses(chainId);
       const contract = new Contract(
-        TASK_ESCROW_ADDRESS,
+        addresses.taskEscrow,
         TaskEscrowABI.abi,
         provider
       );
@@ -83,7 +85,7 @@ export function useTaskStats(
     } finally {
       setLoading(false);
     }
-  }, [provider, address]);
+  }, [provider, address, chainId]);
 
   useEffect(() => {
     loadStats();

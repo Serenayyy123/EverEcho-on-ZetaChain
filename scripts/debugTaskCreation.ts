@@ -1,89 +1,131 @@
+#!/usr/bin/env tsx
+
 /**
  * 调试任务创建问题
  */
 
-import { ethers } from "hardhat";
-import * as fs from "fs";
+import { ethers } from 'hardhat';
 
-async function main() {
-  console.log("🔍 调试任务创建");
-  
-  // 读取部署信息
-  const deploymentData = JSON.parse(fs.readFileSync("./deployment.json", "utf8"));
-  const contracts = deploymentData.localhost.contracts;
+async function debugTaskCreation() {
+  console.log('🔍 Debugging Task Creation...');
 
-  // 获取合约实例
-  const [deployer, creator] = await ethers.getSigners();
+  const [deployer] = await ethers.getSigners();
   
-  const echoToken = await ethers.getContractAt("EOCHOToken", contracts.EOCHOToken.address);
-  const register = await ethers.getContractAt("Register", contracts.Register.address);
-  const taskEscrow = await ethers.getContractAt("TaskEscrow", contracts.TaskEscrow.address);
+  const addresses = {
+    taskEscrow: '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9',
+    echoToken: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+    coordinator: '0x4A679253410272dd5232B3Ff7cF5dbB88f295319'
+  };
 
-  console.log("📋 合约地址：");
-  console.log("TaskEscrow:", contracts.TaskEscrow.address);
-  
-  // 检查常量
-  const taskPostFee = await taskEscrow.TASK_POST_FEE();
-  console.log(`TASK_POST_FEE 常量: ${ethers.formatEther(taskPostFee)} ECHO`);
-  
-  // 检查 taskCounter
-  const taskCounter = await taskEscrow.taskCounter();
-  console.log(`当前 taskCounter: ${taskCounter}`);
-  
-  // 检查用户注册状态
-  const isRegistered = await register.isRegistered(creator.address);
-  console.log(`Creator 注册状态: ${isRegistered}`);
-  
-  if (!isRegistered) {
-    await register.connect(creator).register("ipfs://creator");
-    console.log("✓ Creator 注册完成");
-  }
+  try {
+    // 1. 测试直接调用TaskEscrow.createTask
+    console.log('📦 Testing direct TaskEscrow.createTask...');
+    
+    const taskEscrowABI = [
+      "function createTask(uint256 reward, string memory taskURI) external returns (uint256)",
+      "function taskCounter() external view returns (uint256)"
+    ];
 
-  // 创建任务前检查余额
-  const balance = await echoToken.balanceOf(creator.address);
-  console.log(`Creator 余额: ${ethers.formatEther(balance)} ECHO`);
+    const echoTokenABI = [
+      "function approve(address spender, uint256 amount) external returns (bool)",
+      "function balanceOf(address account) external view returns (uint256)"
+    ];
 
-  // 创建任务
-  const reward = ethers.parseEther("10");
-  const totalRequired = reward + taskPostFee;
-  
-  console.log(`准备创建任务，reward: ${ethers.formatEther(reward)} ECHO`);
-  console.log(`总需要: ${ethers.formatEther(totalRequired)} ECHO`);
-  
-  await echoToken.connect(creator).approve(taskEscrow.target, totalRequired);
-  console.log("✓ Approve 完成");
-  
-  const tx = await taskEscrow.connect(creator).createTask(reward, "ipfs://test-task");
-  const receipt = await tx.wait();
-  console.log("✓ 任务创建交易完成");
-  
-  const newTaskCounter = await taskEscrow.taskCounter();
-  const taskId = Number(newTaskCounter);
-  console.log(`新任务 ID: ${taskId}`);
+    const taskEscrow = new ethers.Contract(addresses.taskEscrow, taskEscrowABI, deployer);
+    const echoToken = new ethers.Contract(addresses.echoToken, echoTokenABI, deployer);
 
-  // 立即检查任务信息
-  const task = await taskEscrow.tasks(taskId);
-  console.log("\n📊 任务信息：");
-  console.log(`taskId: ${task.taskId}`);
-  console.log(`creator: ${task.creator}`);
-  console.log(`reward: ${ethers.formatEther(task.reward)} ECHO`);
-  console.log(`echoPostFee: ${ethers.formatEther(task.echoPostFee)} ECHO`);
-  console.log(`status: ${task.status}`);
-  console.log(`rewardAsset: ${task.rewardAsset}`);
-  console.log(`rewardAmount: ${ethers.formatEther(task.rewardAmount)} ECHO`);
-  
-  if (task.echoPostFee === taskPostFee) {
-    console.log("✅ echoPostFee 设置正确！");
-  } else {
-    console.log("❌ echoPostFee 设置错误！");
-    console.log(`期望: ${ethers.formatEther(taskPostFee)}`);
-    console.log(`实际: ${ethers.formatEther(task.echoPostFee)}`);
+    // 检查当前任务计数器
+    const currentTaskCounter = await taskEscrow.taskCounter();
+    console.log('📋 Current task counter:', currentTaskCounter.toString());
+
+    // 检查ECHO余额和授权
+    const echoBalance = await echoToken.balanceOf(deployer.address);
+    console.log('📋 ECHO balance:', ethers.formatEther(echoBalance), 'ECHO');
+
+    // 授权TaskEscrow使用ECHO
+    const testAmount = ethers.parseEther('110'); // 100 reward + 10 postFee
+    console.log('🔐 Approving TaskEscrow to use ECHO...');
+    const approveTx = await echoToken.approve(addresses.taskEscrow, testAmount);
+    await approveTx.wait();
+    console.log('✅ Approval completed');
+
+    // 尝试直接创建任务
+    console.log('🚀 Attempting direct task creation...');
+    try {
+      const createTaskTx = await taskEscrow.createTask(
+        ethers.parseEther('100'),
+        'test-direct-task-uri'
+      );
+      console.log('📝 Direct task creation sent:', createTaskTx.hash);
+      const receipt = await createTaskTx.wait();
+      console.log('✅ Direct task creation successful');
+      
+      // 检查新的任务计数器
+      const newTaskCounter = await taskEscrow.taskCounter();
+      console.log('📋 New task counter:', newTaskCounter.toString());
+      
+    } catch (directError) {
+      console.log('❌ Direct task creation failed:', directError.message);
+      return false;
+    }
+
+    // 2. 测试协调器调用
+    console.log('\n📦 Testing coordinator task creation...');
+    
+    // 重新授权给协调器
+    console.log('🔐 Approving coordinator to use ECHO...');
+    const coordinatorApproveTx = await echoToken.approve(addresses.coordinator, testAmount);
+    await coordinatorApproveTx.wait();
+    console.log('✅ Coordinator approval completed');
+
+    // 测试协调器的简单任务创建功能
+    const coordinatorABI = [
+      "function createEchoTask(uint256 echoReward, string memory taskURI) external returns (uint256 taskId)"
+    ];
+
+    const coordinator = new ethers.Contract(addresses.coordinator, coordinatorABI, deployer);
+
+    try {
+      console.log('🚀 Testing coordinator createEchoTask...');
+      const coordinatorTaskTx = await coordinator.createEchoTask(
+        ethers.parseEther('100'),
+        'test-coordinator-task-uri'
+      );
+      console.log('📝 Coordinator task creation sent:', coordinatorTaskTx.hash);
+      const receipt = await coordinatorTaskTx.wait();
+      console.log('✅ Coordinator task creation successful');
+      
+      // 检查最终任务计数器
+      const finalTaskCounter = await taskEscrow.taskCounter();
+      console.log('📋 Final task counter:', finalTaskCounter.toString());
+      
+    } catch (coordinatorError) {
+      console.log('❌ Coordinator task creation failed:', coordinatorError.message);
+      return false;
+    }
+
+    return true;
+
+  } catch (error) {
+    console.error('❌ Debug failed:', error);
+    return false;
   }
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
+if (require.main === module) {
+  debugTaskCreation()
+    .then((success) => {
+      if (success) {
+        console.log('🎉 Task creation debug completed successfully!');
+      } else {
+        console.log('❌ Task creation debug failed');
+      }
+      process.exit(success ? 0 : 1);
+    })
+    .catch((error) => {
+      console.error(error);
+      process.exit(1);
+    });
+}
+
+export { debugTaskCreation };

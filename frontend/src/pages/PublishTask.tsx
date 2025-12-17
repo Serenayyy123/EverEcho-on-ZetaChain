@@ -16,11 +16,19 @@ import { AITaskDraft } from '../hooks/useAIService';
 import { FeeExplanationModal } from '../components/ui/FeeExplanationModal';
 import { AIRiskWarning, AIFieldWarning } from '../components/ui/AIRiskWarning';
 import { BetaRewardSelector } from '../components/ui/BetaRewardSelector';
+import { CrossChainRewardSection } from '../components/ui/CrossChainRewardSection';
 import { getDefaultReward, isBetaMode, collectBetaAnalytics } from '../config/betaConfig';
+import { generateEncryptionKeyPair, saveEncryptionPrivateKey } from '../utils/encryption';
+import { apiClient } from '../api/client';
+import { ethers } from 'ethers';
+// Stage 4.9.x: 集成双 Provider 架构
+import NetworkStatusIndicator from '../components/ui/NetworkStatusIndicator';
+import NetworkGuardService from '../services/networkGuard';
+// import { getSignerFresh } from '../services/walletWriteProvider'; // 已通过 networkGuard.refreshSigner() 替代
 
 /**
- * 发布任务页面（P0-F4）
- * 冻结点 2.2-P0-F4：先链下后链上
+ * 发布任务页面 - Chain-first 方法
+ * P0 Fix: 先链上成功，再写后端 metadata，防止 orphan metadata
  * 冻结点 1.2-10：MAX_REWARD 硬限制
  * 冻结点 1.3-14：余额前置检查
  * 联系方式流程：自动从 Profile 获取，不再手动输入
@@ -30,7 +38,12 @@ export function PublishTask() {
   const navigate = useNavigate();
   const { address, chainId, signer, provider } = useWallet();
   const { profile, loading: profileLoading } = useProfile(address, provider);
-  const { createTask, loading, error, txHash, step, MAX_REWARD } = useCreateTask(signer, provider);
+  const { createTask, loading, error, txHash, step, MAX_REWARD } = useCreateTask(signer, provider, chainId);
+
+
+
+  // Stage 4.9.x: 集成双 Provider 架构
+  const networkGuard = NetworkGuardService.getInstance();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -51,6 +64,13 @@ export function PublishTask() {
 
   // Stage 4.6: Beta reward selection tracking
   const [rewardSource, setRewardSource] = useState<'default' | 'suggestion' | 'custom' | 'ai'>('default');
+
+  // Stage 4.9: Cross-chain reward state
+  const [crossChainRewardEnabled, setCrossChainRewardEnabled] = useState(false);
+  const [crossChainRewardId, setCrossChainRewardId] = useState<string | null>(null);
+
+  // Stage 4.9: 发布状态管理
+  const [publishStep, setPublishStep] = useState<'idle' | 'switching' | 'publishing'>('idle');
 
   // Stage 4.6: Set Beta default reward on component mount
   useEffect(() => {
@@ -151,17 +171,66 @@ export function PublishTask() {
 
   const proceedWithSubmission = async () => {
     try {
-      // Use Profile contact info and submit
-      const txHash = await createTask({
+      // Stage 4.9.x: 1. 设置发布模式
+      networkGuard.setMode('publishing');
+      setPublishStep('switching');
+
+      // Stage 4.9.x: 2. 确保钱包在 ZetaChain（发布网络）
+      console.log('[PublishTask] Ensuring wallet on ZetaChain for publishing...');
+      const switchResult = await networkGuard.ensureNetworkFor('publish');
+      
+      if (!switchResult.ok) {
+        throw new Error(switchResult.reason || 'Failed to switch to ZetaChain');
+      }
+
+      setPublishStep('publishing');
+
+      // Stage 4.9.x: 3. 切链后必须获取新鲜的 signer
+      console.log('[PublishTask] Getting fresh signer after network ensure...');
+      const freshSigner = await networkGuard.refreshSigner();
+
+      // Generate encryption key if user doesn't have one
+      let encryptionPubKey = profile?.encryptionPubKey;
+      if (!encryptionPubKey) {
+        console.log('[PublishTask] User missing encryptionPubKey, generating new key...');
+        const { publicKey, privateKey } = generateEncryptionKeyPair();
+        saveEncryptionPrivateKey(address!, privateKey);
+        encryptionPubKey = publicKey;
+        console.log('[PublishTask] Encryption key generated and saved locally');
+        
+        // Update profile with encryption key
+        await apiClient.createProfile({
+          address: address!,
+          nickname: profile?.nickname || 'User',
+          city: profile?.city || 'Unknown',
+          skills: profile?.skills || ['General'],
+          contacts: profile?.contacts,
+          encryptionPubKey: publicKey,
+        });
+        console.log('[PublishTask] Profile updated with encryptionPubKey');
+      }
+
+      // Stage 4.9.x: 4. 使用新鲜的 signer 创建任务
+      console.log('[PublishTask] Creating task with fresh signer...');
+      
+      const taskParams = {
         title,
         description,
         contactsPlaintext: profile!.contacts!,
         reward,
         category: category || undefined,
-        // Stage 4.7: Cross-chain reward support
-        rewardAsset: crossChainRewardAsset || undefined,
-        rewardAmount: crossChainRewardAmount || undefined,
-      });
+        // 原子化操作参数 - 验证 rewardId 有效性，排除恢复状态
+        useAtomicOperation: Boolean(crossChainRewardEnabled && crossChainRewardId && crossChainRewardId !== 'restored'),
+        crossChainRewardId: (crossChainRewardId && crossChainRewardId !== 'restored') ? crossChainRewardId : undefined,
+        rewardAsset: crossChainRewardEnabled ? ethers.ZeroAddress : (crossChainRewardAsset || undefined),
+        rewardAmount: crossChainRewardEnabled ? '0.01' : (crossChainRewardAmount || undefined),
+        targetChainId: crossChainRewardEnabled ? '11155111' : undefined, // Sepolia
+        // 传递新鲜的 signer
+        customSigner: freshSigner
+      };
+
+      // Stage 4.9.x: 使用新鲜的 signer 创建任务
+      const txHash = await createTask(taskParams);
 
     if (txHash) {
       // Stage 4.6: Track successful task creation
@@ -171,9 +240,13 @@ export function PublishTask() {
         source: rewardSource
       });
 
-      // Reset AI tracking
+      // Reset AI tracking and publish state
       setAiGeneratedFields([]);
       setPendingSubmit(false);
+      setPublishStep('idle');
+      
+      // Stage 4.9.x: 重置网络模式
+      networkGuard.setMode('idle');
       
       // Success redirect
       setTimeout(() => {
@@ -181,16 +254,35 @@ export function PublishTask() {
       }, 2000);
     }
     } catch (error) {
-      // Stage 4.6: Track task creation failures
+      // P0 Fix: Enhanced error handling for chain-first flow
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      const isInsufficientBalance = errorMessage.toLowerCase().includes('insufficient') || 
-                                   errorMessage.toLowerCase().includes('balance');
       
+      // Categorize error types for better user feedback
+      let failureReason = 'other';
+      if (errorMessage.toLowerCase().includes('insufficient') || errorMessage.toLowerCase().includes('balance')) {
+        failureReason = 'insufficient_balance';
+      } else if (errorMessage.toLowerCase().includes('user') && errorMessage.toLowerCase().includes('reject')) {
+        failureReason = 'user_cancelled';
+      } else if (errorMessage.toLowerCase().includes('network') || errorMessage.toLowerCase().includes('timeout')) {
+        failureReason = 'network_error';
+      } else if (errorMessage.toLowerCase().includes('metadata')) {
+        failureReason = 'metadata_error';
+      }
+      
+      // Stage 4.6: Track task creation failures
       collectBetaAnalytics('task_failed', {
         rewardAmount: parseFloat(reward),
-        failureReason: isInsufficientBalance ? 'insufficient_balance' : 'other',
+        failureReason,
         source: rewardSource
       });
+      
+      // Reset AI tracking and publish state on error
+      setAiGeneratedFields([]);
+      setPendingSubmit(false);
+      setPublishStep('idle');
+      
+      // Stage 4.9.x: 重置网络模式
+      networkGuard.setMode('idle');
       
       // Re-throw error to maintain existing error handling
       throw error;
@@ -257,12 +349,22 @@ export function PublishTask() {
 
   return (
     <DarkPageLayout title="Publish New Task" theme="light">
-      <NetworkGuard chainId={chainId}>
+      <NetworkGuard 
+        chainId={chainId}
+        allowCrossChainMode={crossChainRewardEnabled}
+        expectedNetworks={crossChainRewardEnabled ? ['0x1b59', '0xaa36a7'] : ['0x1b59']}
+      >
         <Card>
           <div style={styles.content}>
             <p style={styles.subtitle}>
               Create a new task and find helpers in the EverEcho marketplace
             </p>
+
+            {/* Stage 4.9: 网络状态指示器 */}
+            <NetworkStatusIndicator 
+              currentAction="publish"
+              publishStep={publishStep}
+            />
 
             <form onSubmit={handleFormSubmit} style={styles.form}>
               {/* AI Task Draft Generator */}
@@ -405,43 +507,53 @@ export function PublishTask() {
                 </p>
               </div>
 
-              {/* Stage 4.7: Cross-chain Reward (Optional) */}
-              <div style={styles.crossChainSection}>
-                <h3 style={styles.crossChainTitle}>🌉 Cross-chain Reward (Optional)</h3>
-                <div style={styles.crossChainDisclaimer}>
-                  <span style={styles.disclaimerIcon}>⚠️</span>
-                  <span style={styles.disclaimerText}>
-                    ZRC20 tokens on Athens chain. Bridge back to original chain manually if needed.
-                  </span>
-                </div>
-                
-                <div style={styles.formGroup}>
-                  <Input
-                    label="Token Address (ZRC20)"
-                    value={crossChainRewardAsset}
-                    onChange={(e) => setCrossChainRewardAsset(e.target.value)}
-                    placeholder="0x... (leave empty for ECHO only)"
-                    disabled={loading}
-                  />
-                </div>
+              {/* Stage 4.9: Universal App Cross-chain Reward */}
+              <CrossChainRewardSection
+                isEnabled={crossChainRewardEnabled}
+                onToggle={setCrossChainRewardEnabled}
+                onRewardPrepared={setCrossChainRewardId}
+                disabled={loading}
+              />
 
-                <div style={styles.formGroup}>
-                  <Input
-                    label="Cross-chain Amount"
-                    type="number"
-                    value={crossChainRewardAmount}
-                    onChange={(e) => setCrossChainRewardAmount(e.target.value)}
-                    placeholder="Additional reward amount"
-                    disabled={loading}
-                    step="0.01"
-                    min="0"
-                  />
-                </div>
+              {/* Stage 4.7: Legacy Cross-chain Reward (Hidden) */}
+              {false && (
+                <div style={styles.crossChainSection}>
+                  <h3 style={styles.crossChainTitle}>🌉 Cross-chain Reward (Legacy)</h3>
+                  <div style={styles.crossChainDisclaimer}>
+                    <span style={styles.disclaimerIcon}>⚠️</span>
+                    <span style={styles.disclaimerText}>
+                      ZRC20 tokens on Athens chain. Bridge back to original chain manually if needed.
+                    </span>
+                  </div>
+                  
+                  <div style={styles.formGroup}>
+                    <Input
+                      label="Token Address (ZRC20)"
+                      value={crossChainRewardAsset}
+                      onChange={(e) => setCrossChainRewardAsset(e.target.value)}
+                      placeholder="0x... (leave empty for ECHO only)"
+                      disabled={loading}
+                    />
+                  </div>
 
-                <p style={styles.hint}>
-                  Cross-chain rewards are deposited separately after task creation
-                </p>
-              </div>
+                  <div style={styles.formGroup}>
+                    <Input
+                      label="Cross-chain Amount"
+                      type="number"
+                      value={crossChainRewardAmount}
+                      onChange={(e) => setCrossChainRewardAmount(e.target.value)}
+                      placeholder="Additional reward amount"
+                      disabled={loading}
+                      step="0.01"
+                      min="0"
+                    />
+                  </div>
+
+                  <p style={styles.hint}>
+                    Cross-chain rewards are deposited separately after task creation
+                  </p>
+                </div>
+              )}
 
               {/* 联系方式预览（从 Profile 自动获取） */}
               <div style={styles.contactsSection}>
@@ -501,11 +613,13 @@ export function PublishTask() {
                 variant="secondary"
                 size="lg"
                 fullWidth
-                loading={loading}
-                disabled={loading || !profile?.contacts}
+                loading={loading || publishStep !== 'idle'}
+                disabled={loading || publishStep !== 'idle' || !profile?.contacts}
                 theme="light"
               >
-                Publish Task
+                {publishStep === 'switching' && '切换网络中...'}
+                {publishStep === 'publishing' && '发布中...'}
+                {publishStep === 'idle' && 'Publish Task'}
               </Button>
             </form>
           </div>

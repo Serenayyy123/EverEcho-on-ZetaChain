@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { ethers, Contract } from 'ethers';
-import { TASK_ESCROW_ADDRESS } from '../contracts/addresses';
+import { getContractAddresses } from '../contracts/addresses';
 import TaskEscrowABI from '../contracts/TaskEscrow.json';
 import { Task, TaskStatus } from '../types/task';
 import { apiClient } from '../api/client';
@@ -8,6 +8,7 @@ import { apiClient } from '../api/client';
 /**
  * 任务历史 Hook
  * 冻结点 2.3-P0-F3：任务历史来自链上 TaskEscrow
+ * P0 Fix: 区块链优先数据加载，防止显示 orphan metadata
  */
 
 export interface TaskHistoryFilters {
@@ -17,7 +18,8 @@ export interface TaskHistoryFilters {
 
 export function useTaskHistory(
   provider: ethers.Provider | null,
-  filters: TaskHistoryFilters | null
+  filters: TaskHistoryFilters | null,
+  chainId?: number | null
 ) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
@@ -30,14 +32,32 @@ export function useTaskHistory(
   ]);
 
   /**
-   * 从 taskURI 获取元数据
+   * P0 Fix: 区块链优先加载单个任务 metadata
+   * 复用 useTasks.ts 中已验证的优化策略
    */
-  const fetchMetadata = useCallback(async (taskURI: string) => {
+  const fetchMetadata = useCallback(async (taskId: number, taskData: any) => {
     try {
-      return await apiClient.getTask(taskURI);
-    } catch (error) {
-      console.error('Failed to fetch metadata:', error);
-      return undefined;
+      const metadata = await apiClient.getTask(taskId.toString());
+      console.log(`[useTaskHistory] ✅ Loaded metadata for task ${taskId}:`, {
+        title: metadata?.title,
+        category: metadata?.category,
+      });
+      return { metadata, metadataError: false };
+    } catch (err) {
+      console.warn(`[useTaskHistory] ⚠️ Failed to load metadata for task ${taskId}, using placeholder:`, err);
+      
+      // P0 Fix: 提供占位符 metadata
+      const placeholderMetadata = {
+        taskId: taskId.toString(),
+        title: `Task #${taskId}`,
+        description: 'Metadata loading failed. This task exists on blockchain but metadata is unavailable.',
+        contactsEncryptedPayload: '',
+        createdAt: taskData.createdAt.toString(),
+        creatorAddress: taskData.creator,
+        category: 'unknown'
+      };
+      
+      return { metadata: placeholderMetadata, metadataError: true };
     }
   }, []);
 
@@ -45,7 +65,7 @@ export function useTaskHistory(
    * 加载任务历史
    */
   const loadTaskHistory = useCallback(async () => {
-    if (!provider || !stableFilters) {
+    if (!provider || !stableFilters || !chainId) {
       return;
     }
 
@@ -53,15 +73,19 @@ export function useTaskHistory(
     setError(null);
 
     try {
+      const addresses = getContractAddresses(chainId);
       const contract = new Contract(
-        TASK_ESCROW_ADDRESS,
+        addresses.taskEscrow,
         TaskEscrowABI.abi,
         provider
       );
 
-      // 获取任务总数
+      console.log('[useTaskHistory] 🔗 Loading task history from blockchain (chain-first approach)...');
+
+      // P0 Fix: 区块链优先 - 获取任务总数
       const taskCounter = await contract.taskCounter();
       const count = Number(taskCounter);
+      console.log(`[useTaskHistory] Found ${taskCounter} tasks on blockchain`);
 
       // 读取所有任务并筛选
       const taskPromises: Promise<Task | null>[] = [];
@@ -79,6 +103,17 @@ export function useTaskHistory(
                   : taskData.helper.toLowerCase() === stableFilters.address.toLowerCase();
 
               if (!isMatch) return null;
+
+              // P0 Fix: 验证任务是否真实存在（creator 不为零地址）
+              if (taskData.creator === ethers.ZeroAddress) {
+                console.warn(`[useTaskHistory] ⚠️ Task ${i} has zero creator address, skipping`);
+                return null;
+              }
+
+              console.log(`[useTaskHistory] 📋 Task ${i} exists on blockchain, loading metadata...`);
+
+              // P0 Fix: 尝试加载 metadata，如果失败则使用占位符
+              const { metadata, metadataError } = await fetchMetadata(i, taskData);
 
               const task: Task = {
                 taskId: taskData.taskId.toString(),
@@ -98,13 +133,9 @@ export function useTaskHistory(
                 echoPostFee: ethers.formatEther(taskData.echoPostFee),
                 rewardAsset: taskData.rewardAsset,
                 rewardAmount: ethers.formatEther(taskData.rewardAmount),
+                metadata,
+                metadataError,
               };
-
-              // 获取链下元数据
-              const metadata = await fetchMetadata(taskData.taskURI);
-              if (metadata) {
-                task.metadata = metadata;
-              }
 
               return task;
             } catch (err) {
@@ -121,14 +152,15 @@ export function useTaskHistory(
       // 按创建时间倒序排列
       filteredTasks.sort((a, b) => b.createdAt - a.createdAt);
 
+      console.log(`[useTaskHistory] ✅ Loaded ${filteredTasks.length} valid tasks from blockchain for ${stableFilters.role}`);
       setTasks(filteredTasks);
     } catch (err) {
-      console.error('Failed to load task history:', err);
+      console.error('[useTaskHistory] ❌ Load task history failed:', err);
       setError(err instanceof Error ? err.message : 'Failed to load task history');
     } finally {
       setLoading(false);
     }
-  }, [provider, stableFilters, fetchMetadata]);
+  }, [provider, stableFilters, chainId, fetchMetadata]);
 
   useEffect(() => {
     loadTaskHistory();

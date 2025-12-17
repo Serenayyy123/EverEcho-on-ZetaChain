@@ -72,6 +72,16 @@ export interface ContactsDecryptResponse {
   contactsEncryptedPayload?: string; // 可选（向后兼容）
 }
 
+/**
+ * 重试配置选项
+ */
+export interface RetryOptions {
+  maxRetries?: number; // 最大重试次数，默认 3
+  retryDelay?: number; // 重试延迟基数（毫秒），默认 1000
+  retryOn404?: boolean; // 是否在 404 错误时重试，默认 true
+  retryOnNetworkError?: boolean; // 是否在网络错误时重试，默认 true
+}
+
 class APIClient {
   private baseURL: string;
 
@@ -79,25 +89,89 @@ class APIClient {
     this.baseURL = baseURL;
   }
 
+  /**
+   * 带重试机制的请求方法
+   * 自动处理网络错误和 404 错误，提高系统稳定性
+   */
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    retryOptions: RetryOptions = {}
   ): Promise<T> {
-    const url = `${this.baseURL}${endpoint}`;
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    });
+    const {
+      maxRetries = 3,
+      retryDelay = 1000,
+      retryOn404 = true,
+      retryOnNetworkError = true
+    } = retryOptions;
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: response.statusText }));
-      throw new Error(error.message || `HTTP ${response.status}`);
+    let lastError: Error;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const url = `${this.baseURL}${endpoint}`;
+        console.log(`[APIClient] Request attempt ${attempt}/${maxRetries}: ${options.method || 'GET'} ${endpoint}`);
+        
+        const response = await fetch(url, {
+          ...options,
+          headers: {
+            'Content-Type': 'application/json',
+            ...options.headers,
+          },
+        });
+
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({ message: response.statusText }));
+          const errorMessage = error.message || `HTTP ${response.status}`;
+          lastError = new Error(errorMessage);
+
+          // 检查是否应该重试
+          const shouldRetry = attempt < maxRetries && (
+            (response.status === 404 && retryOn404) ||
+            (response.status >= 500 && retryOnNetworkError) ||
+            (response.status === 0 && retryOnNetworkError) // 网络连接失败
+          );
+
+          if (shouldRetry) {
+            const delay = retryDelay * attempt; // 指数退避
+            console.warn(`[APIClient] HTTP ${response.status} error, retrying in ${delay}ms... (${attempt}/${maxRetries})`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+
+          // 不重试或已达到最大重试次数
+          throw lastError;
+        }
+
+        console.log(`[APIClient] Request successful on attempt ${attempt}`);
+        return response.json();
+
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error('Unknown network error');
+        
+        // 检查是否是网络错误且应该重试
+        const isNetworkError = err instanceof TypeError || 
+                              (err as any).name === 'NetworkError' ||
+                              (err as any).code === 'NETWORK_ERROR';
+        
+        const shouldRetry = attempt < maxRetries && isNetworkError && retryOnNetworkError;
+
+        if (shouldRetry) {
+          const delay = retryDelay * attempt;
+          console.warn(`[APIClient] Network error, retrying in ${delay}ms... (${attempt}/${maxRetries})`, err);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+
+        // 不重试或已达到最大重试次数
+        if (attempt === maxRetries) {
+          console.error(`[APIClient] All ${maxRetries} attempts failed for ${endpoint}`, lastError);
+        }
+        throw lastError;
+      }
     }
 
-    return response.json();
+    throw lastError!;
   }
 
   // Profile API
@@ -150,11 +224,19 @@ class APIClient {
 
   // Contacts API
   async decryptContacts(req: ContactsDecryptRequest): Promise<ContactsDecryptResponse> {
+    // 联系方式解密使用增强的重试配置，专门解决 HTTP 404 缓存问题
     return this.request<ContactsDecryptResponse>('/api/contacts/decrypt', {
       method: 'POST',
       body: JSON.stringify(req),
+    }, {
+      maxRetries: 5, // 增加重试次数，因为这是关键功能
+      retryDelay: 1500, // 稍长的延迟，给后端更多时间
+      retryOn404: true, // 专门处理 404 缓存问题
+      retryOnNetworkError: true
     });
   }
+
+
 
   // Health check
   async healthCheck(): Promise<{ status: string }> {

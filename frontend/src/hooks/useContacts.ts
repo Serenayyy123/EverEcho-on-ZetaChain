@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ethers } from 'ethers';
 import { apiClient } from '../api/client';
+import { handleError } from '../utils/errorHandler';
 
 /**
  * 真实联系方式 Hook
@@ -62,10 +63,25 @@ export function useContacts(
       console.error('Load contacts failed:', err);
       
       let errorMessage = 'Failed to load contacts';
+      
       if (err.code === 'ACTION_REJECTED') {
-        errorMessage = 'Signature rejected by user';
-      } else if (err.message) {
-        errorMessage = err.message;
+        // 用户拒绝签名
+        const errorDetails = handleError(err, 'ethers');
+        errorMessage = errorDetails.message;
+      } else if (err.message?.includes('HTTP 404')) {
+        // 这种情况现在应该很少见，因为有自动重试机制
+        errorMessage = 'Service temporarily unavailable. The system has already attempted automatic retries. Please try again in a moment.';
+      } else if (err.message?.includes('All') && err.message?.includes('attempts failed')) {
+        // 所有重试都失败了
+        errorMessage = 'Unable to connect to backend service after multiple attempts. Please check your connection and try again.';
+      } else if (err.message?.includes('Network') || err.name === 'TypeError') {
+        // 网络错误，使用统一的错误处理
+        const errorDetails = handleError(err, 'api');
+        errorMessage = `${errorDetails.message}. The system will automatically retry.`;
+      } else {
+        // 其他 API 错误
+        const errorDetails = handleError(err, 'api');
+        errorMessage = errorDetails.message;
       }
       
       setError(errorMessage);

@@ -8,16 +8,30 @@
     "deploy:localhost": "hardhat run scripts/deploy.ts --network localhost",
     "deploy:sepolia": "hardhat run scripts/deploy.ts --network sepolia",
     "node": "hardhat node",
-    "clean": "hardhat clean"
+    "clean": "hardhat clean",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "stage4.9:deploy": "npx tsx scripts/deployStage4_9Production.ts",
+    "stage4.9:quick": "npx tsx scripts/quickDeployStage4_9.ts",
+    "stage4.9:verify": "npx tsx scripts/verifyStage4_9.universal.local.ts",
+    "stage4.9:start": "powershell -ExecutionPolicy Bypass -File start-stage4.9-simple.ps1",
+    "deploy:zeta": "npx ts-node scripts/deployMethod4ZetaTestnet.ts",
+    "start:zeta": "powershell -ExecutionPolicy Bypass -File start-zeta-testnet.ps1",
+    "compile:all": "hardhat compile"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",
     "@types/node": "^20.10.0",
+    "@types/node-fetch": "^2.6.13",
     "dotenv": "^16.3.1",
     "hardhat": "^2.19.0",
+    "node-fetch": "^3.3.2",
     "typescript": "^5.3.0"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "^5.4.0"
+    "@openzeppelin/contracts": "^5.4.0",
+    "@zetachain/protocol-contracts": "^14.1.0",
+    "@zetachain/toolkit": "^16.3.0",
+    "axios": "^1.13.2"
   }
 }

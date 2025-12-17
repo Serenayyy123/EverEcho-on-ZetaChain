@@ -117,24 +117,11 @@ async function main() {
   console.log("✓ EOCHOToken TaskEscrow 地址配置完成");
   console.log("");
 
-  // 6. 部署 EverEchoGateway
-  console.log("[6/7] 部署 EverEchoGateway...");
-  const EverEchoGateway = await ethers.getContractFactory("EverEchoGateway");
-  const gateway = await EverEchoGateway.deploy(taskEscrowAddress);
-  await gateway.waitForDeployment();
-  const gatewayAddress = await gateway.getAddress();
-  const gatewayTx = gateway.deploymentTransaction();
-  const gatewayReceipt = await gatewayTx?.wait();
-  console.log("✓ EverEchoGateway 部署成功:", gatewayAddress);
-  console.log("  交易哈希:", gatewayTx?.hash);
-  console.log("  区块号:", gatewayReceipt?.blockNumber);
+  // 6. 跳过 EverEchoGateway 部署 (未被实际使用)
+  console.log("[6/7] 跳过 EverEchoGateway 部署...");
+  console.log("⚠️  Gateway合约未被前端实际使用，跳过部署");
+  console.log("   前端实际使用UniversalReward合约处理跨链奖励");
   console.log("");
-
-  deploymentData.contracts.EverEchoGateway = {
-    address: gatewayAddress,
-    txHash: gatewayTx?.hash,
-    blockNumber: gatewayReceipt?.blockNumber
-  };
 
   // 7. 部署 MockZRC20 (仅本地网络)
   let mockZRC20Address = "";
@@ -200,7 +187,7 @@ async function main() {
   console.log("EOCHOToken:     ", echoTokenAddress);
   console.log("Register:       ", registerAddress);
   console.log("TaskEscrow:     ", taskEscrowAddress);
-  console.log("EverEchoGateway:", gatewayAddress);
+  console.log("Gateway:        ", "跳过部署 (未被使用)");
   if (mockZRC20Address) {
     console.log("MockZRC20:      ", mockZRC20Address);
   }
@@ -210,7 +197,7 @@ async function main() {
   console.log("EOCHOToken:     ", echoTokenTx?.hash, "Block:", echoTokenReceipt?.blockNumber);
   console.log("Register:       ", registerTx?.hash, "Block:", registerReceipt?.blockNumber);
   console.log("TaskEscrow:     ", taskEscrowTx?.hash, "Block:", taskEscrowReceipt?.blockNumber);
-  console.log("EverEchoGateway:", gatewayTx?.hash, "Block:", gatewayReceipt?.blockNumber);
+  console.log("Gateway:        ", "跳过部署");
   console.log("");
   // 输出配置信息
   console.log("前端配置（frontend/.env）：");
@@ -218,7 +205,7 @@ async function main() {
   console.log(`VITE_EOCHO_TOKEN_ADDRESS=${echoTokenAddress}`);
   console.log(`VITE_REGISTER_ADDRESS=${registerAddress}`);
   console.log(`VITE_TASK_ESCROW_ADDRESS=${taskEscrowAddress}`);
-  console.log(`VITE_GATEWAY_ADDRESS=${gatewayAddress}`);
+  console.log(`# VITE_GATEWAY_ADDRESS=跳过部署 (未被使用)`);
   if (mockZRC20Address) {
     console.log(`VITE_MOCK_ZRC20_ADDRESS=${mockZRC20Address}`);
   }
@@ -231,7 +218,7 @@ async function main() {
   console.log("-".repeat(50));
   console.log(`RPC_URL=${rpcUrl}`);
   console.log(`TASK_ESCROW_ADDRESS=${taskEscrowAddress}`);
-  console.log(`GATEWAY_ADDRESS=${gatewayAddress}`);
+  console.log(`# GATEWAY_ADDRESS=跳过部署 (未被使用)`);
   console.log(`CHAIN_ID=${chainId}`);
   console.log("");
 
@@ -242,7 +229,7 @@ async function main() {
     console.log(`npx hardhat verify --network baseSepolia ${echoTokenAddress}`);
     console.log(`npx hardhat verify --network baseSepolia ${registerAddress} ${echoTokenAddress}`);
     console.log(`npx hardhat verify --network baseSepolia ${taskEscrowAddress} ${echoTokenAddress} ${registerAddress}`);
-    console.log(`npx hardhat verify --network baseSepolia ${gatewayAddress} ${taskEscrowAddress}`);
+    console.log(`# Gateway跳过验证 (未部署)`);
     console.log("");
   } else if (chainId === 11155111) {
     console.log("提示：在 Etherscan 上验证合约");
@@ -250,7 +237,7 @@ async function main() {
     console.log(`npx hardhat verify --network sepolia ${echoTokenAddress}`);
     console.log(`npx hardhat verify --network sepolia ${registerAddress} ${echoTokenAddress}`);
     console.log(`npx hardhat verify --network sepolia ${taskEscrowAddress} ${echoTokenAddress} ${registerAddress}`);
-    console.log(`npx hardhat verify --network sepolia ${gatewayAddress} ${taskEscrowAddress}`);
+    console.log(`# Gateway跳过验证 (未部署)`);
     console.log("");
   } else if (chainId === 7001) {
     console.log("提示：ZetaChain Athens 部署完成");

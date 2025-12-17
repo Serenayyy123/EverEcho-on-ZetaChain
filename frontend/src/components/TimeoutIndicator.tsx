@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { TaskStatus } from '../types/task';
 import { useTimeout } from '../hooks/useTimeout';
 import { Contract, ethers } from 'ethers';
-import { TASK_ESCROW_ADDRESS } from '../contracts/addresses';
+import { getContractAddresses, DEFAULT_CHAIN_ID } from '../contracts/addresses';
 import TaskEscrowABI from '../contracts/TaskEscrow.json';
 
 /**
@@ -103,7 +103,8 @@ export function TimeoutIndicator({
     setTxHash(null);
 
     try {
-      const contract = new Contract(TASK_ESCROW_ADDRESS, TaskEscrowABI.abi, signer);
+      const addresses = getContractAddresses(DEFAULT_CHAIN_ID);
+      const contract = new Contract(addresses.taskEscrow, TaskEscrowABI.abi, signer);
       const tx = await contract[timeoutFunction](taskId);
       setTxHash(tx.hash);
 

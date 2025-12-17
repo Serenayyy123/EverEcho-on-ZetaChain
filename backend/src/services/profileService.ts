@@ -16,6 +16,10 @@ const prisma = new PrismaClient();
 export async function upsertProfile(input: ProfileInput) {
   const { address, nickname, city, skills, encryptionPubKey, contacts } = input;
 
+  // 严格验证公钥格式和可用性
+  const { validateAndNormalizePublicKey } = await import('./encryptionService');
+  const normalizedPubKey = validateAndNormalizePublicKey(encryptionPubKey);
+
   // 幂等性：使用 upsert，同一 address 覆盖旧数据
   const profile = await prisma.profile.upsert({
     where: { address },
@@ -23,7 +27,7 @@ export async function upsertProfile(input: ProfileInput) {
       nickname,
       city,
       skills: JSON.stringify(skills),
-      encryptionPubKey,
+      encryptionPubKey: normalizedPubKey,
       contacts: contacts || undefined,
     },
     create: {
@@ -31,7 +35,7 @@ export async function upsertProfile(input: ProfileInput) {
       nickname,
       city,
       skills: JSON.stringify(skills),
-      encryptionPubKey,
+      encryptionPubKey: normalizedPubKey,
       contacts: contacts || undefined,
     },
   });

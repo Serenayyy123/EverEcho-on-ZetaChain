@@ -242,4 +242,72 @@ router.post('/decrypt', async (req: Request, res: Response) => {
   }
 });
 
+
+/**
+ * POST /api/contacts/test-decrypt
+ * 测试用联系方式解密端点（无签名验证）
+ * 仅用于本地开发测试
+ */
+router.post('/test-decrypt', async (req: Request, res: Response) => {
+  try {
+    const { taskId, userAddress } = req.body;
+    
+    console.log('[/test-decrypt] Request received:', { taskId, userAddress });
+    
+    // 参数校验
+    if (!taskId || !userAddress) {
+      return res.status(400).json({
+        error: 'Missing required fields: taskId, userAddress',
+      });
+    }
+    
+    // 直接从数据库获取明文联系方式
+    const { getCurrentChainId } = require('../config/chainConfig');
+    const CURRENT_CHAIN_ID = getCurrentChainId();
+    
+    const task = await prisma.task.findUnique({
+      where: {
+        chainId_taskId: { chainId: CURRENT_CHAIN_ID, taskId }
+      },
+      select: { 
+        contactsPlaintext: true,
+        creator: true,
+        title: true
+      },
+    });
+    
+    if (!task) {
+      console.log('[/test-decrypt] Task not found:', taskId);
+      return res.status(404).json({
+        error: 'Task not found',
+      });
+    }
+    
+    if (!task.contactsPlaintext) {
+      console.log('[/test-decrypt] Contacts not found for task:', taskId);
+      return res.status(404).json({
+        error: 'Contacts not found',
+      });
+    }
+    
+    console.log('[/test-decrypt] Returning contacts:', task.contactsPlaintext);
+    
+    // 返回明文联系方式
+    res.status(200).json({
+      success: true,
+      contacts: task.contactsPlaintext,
+      taskTitle: task.title,
+      creator: task.creator,
+      note: 'This is a test endpoint without signature verification'
+    });
+    
+  } catch (error) {
+    console.error('Error in test-decrypt:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
 export default router;

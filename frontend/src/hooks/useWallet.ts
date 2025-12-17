@@ -309,9 +309,4 @@ export function useWallet() {
   };
 }
 
-// 扩展 Window 接口
-declare global {
-  interface Window {
-    ethereum?: any;
-  }
-}
+// Window.ethereum 类型已在 types/ethereum.d.ts 中定义

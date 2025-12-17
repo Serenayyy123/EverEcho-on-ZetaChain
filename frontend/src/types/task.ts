@@ -65,4 +65,5 @@ export interface TaskMetadata {
  */
 export interface Task extends OnChainTask {
   metadata?: TaskMetadata;
+  metadataError?: boolean; // P0 Fix: 元数据加载失败标记
 }

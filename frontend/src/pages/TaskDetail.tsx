@@ -39,15 +39,28 @@ export function TaskDetail() {
   const [actionLoading, setActionLoading] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
 
-  // 加载任务详情
+  // P0 Fix: 区块链优先加载任务详情
   useEffect(() => {
     if (!provider || !taskId || !chainId) return;
 
     const loadTask = async () => {
       try {
+        console.log(`[TaskDetail] 🔗 Loading task ${taskId} from blockchain...`);
+        
         const addresses = getContractAddresses(chainId);
         const contract = new Contract(addresses.taskEscrow, TaskEscrowABI.abi, provider);
         const taskData = await contract.tasks(taskId);
+
+        // P0 Fix: 验证任务是否真实存在于区块链上
+        if (taskData.creator === ethers.ZeroAddress) {
+          console.warn(`[TaskDetail] ❌ Task ${taskId} not found on blockchain (creator is zero address)`);
+          setError('orphan_task');
+          setTask(null);
+          setLoading(false);
+          return;
+        }
+
+        console.log(`[TaskDetail] ✅ Task ${taskId} exists on blockchain`);
 
         const onChainTask: Task = {
           taskId: taskData.taskId.toString(),
@@ -69,19 +82,32 @@ export function TaskDetail() {
           rewardAmount: ethers.formatEther(taskData.rewardAmount),
         };
 
-        // 获取元数据
+        // P0 Fix: 尝试获取元数据，如果失败则使用占位符
         try {
-          onChainTask.metadata = await apiClient.getTask(taskData.taskURI);
+          console.log(`[TaskDetail] 📋 Loading metadata for task ${taskId}...`);
+          onChainTask.metadata = await apiClient.getTask(taskId.toString());
           setMetadataError(false);
+          console.log(`[TaskDetail] ✅ Metadata loaded successfully`);
         } catch (e) {
-          console.error('Failed to fetch metadata:', e);
+          console.warn(`[TaskDetail] ⚠️ Failed to fetch metadata for task ${taskId}:`, e);
           setMetadataError(true);
+          
+          // P0 Fix: 提供占位符 metadata
+          onChainTask.metadata = {
+            title: `Task #${taskId}`,
+            description: 'Metadata loading failed. This task exists on blockchain but metadata is unavailable.',
+            contactsEncryptedPayload: '',
+            createdAt: taskData.createdAt.toString(),
+            category: 'unknown'
+          };
         }
 
         setTask(onChainTask);
+        setError(null);
       } catch (error) {
-        console.error('Failed to load task:', error);
+        console.error(`[TaskDetail] ❌ Failed to load task ${taskId}:`, error);
         setError(error instanceof Error ? error.message : 'Failed to load task');
+        setTask(null);
       } finally {
         setLoading(false);
       }
@@ -334,6 +360,40 @@ export function TaskDetail() {
     );
   }
 
+  // P0 Fix: 特殊处理 orphan 任务错误
+  if (error === 'orphan_task') {
+    return (
+      <DarkPageLayout title="Task Detail" theme="light">
+        <Card>
+          <Alert variant="error">
+            <div style={{ marginBottom: '16px' }}>
+              <strong>⚠️ Task Not Found on Blockchain</strong>
+            </div>
+            <p style={{ marginBottom: '12px' }}>
+              This task does not exist on the blockchain. This may have happened because:
+            </p>
+            <ul style={{ marginBottom: '16px', paddingLeft: '20px' }}>
+              <li>The task creation transaction was cancelled or failed</li>
+              <li>The task was created but the blockchain transaction didn't complete</li>
+              <li>There was a network issue during task creation</li>
+            </ul>
+            <p style={{ fontSize: '14px', color: '#666' }}>
+              If you just created this task, please try creating it again. If this problem persists, please contact support.
+            </p>
+          </Alert>
+          <div style={styles.centerActions}>
+            <Button variant="secondary" onClick={() => navigate('/tasks')} theme="light" style={{ marginRight: '12px' }}>
+              ← Back to Task Square
+            </Button>
+            <Button variant="primary" onClick={() => navigate('/publish')} theme="light">
+              Create New Task
+            </Button>
+          </div>
+        </Card>
+      </DarkPageLayout>
+    );
+  }
+
   if (error || !task) {
     return (
       <DarkPageLayout title="Task Detail" theme="light">
@@ -492,11 +552,8 @@ export function TaskDetail() {
             {/* Cross-chain Reward Display */}
             <CrossChainRewardDisplay
               taskId={task.taskId}
-              rewardAsset={task.rewardAsset}
-              rewardAmount={task.rewardAmount}
+              userRole={address === task.creator ? 'creator' : address === task.helper ? 'helper' : 'viewer'}
               taskStatus={task.status}
-              isCreator={address === task.creator}
-              isHelper={address === task.helper}
             />
 
             {/* Actions */}

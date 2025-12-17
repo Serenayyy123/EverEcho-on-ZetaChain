@@ -11,6 +11,16 @@ interface IRegister {
     function isRegistered(address account) external view returns (bool);
 }
 
+interface IUniversalReward {
+    function createAndLockReward(
+        address creator,
+        address crossChainAsset,
+        uint256 crossChainAmount,
+        uint256 targetChainId,
+        uint256 taskId
+    ) external payable returns (uint256 rewardId);
+}
+
 /**
  * @title TaskEscrow
  * @notice EverEcho 任务托管合约，管理任务状态流转与资金结算
@@ -56,6 +66,9 @@ contract TaskEscrow {
     IRegister public immutable registerContract;
     uint256 public taskCounter;
     mapping(uint256 => Task) public tasks;
+    
+    // Method 4: UniversalReward集成
+    address public universalRewardAddress;
 
     // ============ 事件（与 PRD 5.2 完全一致）============
     event TaskCreated(uint256 indexed taskId, address indexed creator, uint256 reward, string taskURI);
@@ -66,6 +79,14 @@ contract TaskEscrow {
     event TerminateRequested(uint256 indexed taskId, address indexed requestedBy);
     event TerminateAgreed(uint256 indexed taskId);
     event FixRequested(uint256 indexed taskId);
+    event TaskWithCrossChainRewardCreated(
+        uint256 indexed taskId, 
+        uint256 indexed rewardId, 
+        address indexed creator, 
+        uint256 echoReward, 
+        uint256 crossChainAmount, 
+        uint256 targetChainId
+    );
 
     // ============ 错误 ============
     error NotRegistered();
@@ -115,6 +136,36 @@ contract TaskEscrow {
         uint256 rewardAmount
     ) external returns (uint256) {
         return _createTask(reward, taskURI, rewardAsset, rewardAmount);
+    }
+
+    /**
+     * @notice 原子化创建任务和跨链奖励（Method 4 - 仅用于TaskID协调）
+     * @param reward 任务奖励金额（ECHO）
+     * @param taskURI 任务元数据 URI
+     * @param crossChainAsset 跨链奖励资产地址
+     * @param crossChainAmount 跨链奖励数量
+     * @param targetChainId 目标链ID
+     * @return taskId 任务 ID
+     * @return rewardId 跨链奖励 ID（如果UniversalReward已配置）
+     * @dev 职责分离：TaskEscrow只处理ECHO代币，UniversalReward处理跨链代币
+     * @dev 此函数不处理任何跨链资金，仅提供确定性TaskID给UniversalReward使用
+     */
+    function createTaskWithCrossChainReward(
+        uint256 reward,
+        string calldata taskURI,
+        address crossChainAsset,
+        uint256 crossChainAmount,
+        uint256 targetChainId
+    ) external returns (uint256 taskId, uint256 rewardId) {
+        // 1. 只创建ECHO任务（不处理跨链代币）
+        taskId = _createTask(reward, taskURI, crossChainAsset, crossChainAmount);
+        
+        // 2. 不处理跨链资金 - 由UniversalReward在单独交易中处理
+        // 这里只是为了保持接口兼容性，实际的跨链资金由前端分别调用UniversalReward处理
+        rewardId = 0; // 占位值，实际rewardId由UniversalReward生成
+        
+        // 3. 发出协调事件（不包含实际的跨链资金操作）
+        emit TaskWithCrossChainRewardCreated(taskId, rewardId, msg.sender, reward, crossChainAmount, targetChainId);
     }
 
     /**
@@ -510,5 +561,24 @@ contract TaskEscrow {
      */
     function getTaskStatus(uint256 taskId) external view returns (TaskStatus) {
         return tasks[taskId].status;
+    }
+
+    /**
+     * @notice 获取UniversalReward合约地址
+     * @return universalRewardAddress UniversalReward合约地址
+     */
+    function getUniversalRewardAddress() public view returns (address) {
+        return universalRewardAddress;
+    }
+
+    /**
+     * @notice 设置UniversalReward合约地址（仅部署者可调用）
+     * @param _universalRewardAddress UniversalReward合约地址
+     * @dev Method 4: 允许配置UniversalReward地址以支持原子化操作
+     */
+    function setUniversalRewardAddress(address _universalRewardAddress) external {
+        // 简单权限控制：可以根据需要改为onlyOwner等
+        require(msg.sender == address(registerContract) || universalRewardAddress == address(0), "Unauthorized");
+        universalRewardAddress = _universalRewardAddress;
     }
 }

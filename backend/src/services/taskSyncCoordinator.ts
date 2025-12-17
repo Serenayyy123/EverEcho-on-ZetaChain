@@ -186,8 +186,19 @@ async function createTaskAndContactKey(
         where: { address: helper },
       });
       
-      if (helperProfile && helperProfile.encryptionPubKey) {
-        helperWrappedDEK = wrapDEK(dek, helperProfile.encryptionPubKey);
+      if (!helperProfile || !helperProfile.encryptionPubKey) {
+        console.error(`[TaskSync] Helper ${helper} must have valid profile with encryption key to accept task ${taskId}`);
+        return false;
+      }
+      
+      // 严格验证 Helper 公钥
+      const { validateAndNormalizePublicKey } = await import('./encryptionService');
+      try {
+        const normalizedHelperPubKey = validateAndNormalizePublicKey(helperProfile.encryptionPubKey);
+        helperWrappedDEK = wrapDEK(dek, normalizedHelperPubKey);
+      } catch (error) {
+        console.error(`[TaskSync] Helper ${helper} has invalid encryption key for task ${taskId}:`, error);
+        return false;
       }
     }
     
@@ -273,14 +284,14 @@ async function createContactKeyOnly(
       return false;
     }
     
-    // 验证公钥
-    const cleanHex = creatorProfile.encryptionPubKey.startsWith('0x')
-      ? creatorProfile.encryptionPubKey.slice(2)
-      : creatorProfile.encryptionPubKey;
-    const byteLength = cleanHex.length / 2;
+    // 严格验证 Creator 公钥
+    const { validateAndNormalizePublicKey } = await import('./encryptionService');
+    let normalizedCreatorPubKey: string;
     
-    if (byteLength !== 32) {
-      console.error(`[TaskSync] Invalid public key for creator ${creator}: ${byteLength} bytes`);
+    try {
+      normalizedCreatorPubKey = validateAndNormalizePublicKey(creatorProfile.encryptionPubKey);
+    } catch (error) {
+      console.error(`[TaskSync] Creator ${creator} has invalid encryption key:`, error);
       return false;
     }
     
@@ -288,7 +299,7 @@ async function createContactKeyOnly(
     const contactsPlaintext = task.contactsPlaintext || 'N/A';
     const dek = generateDEK();
     const encryptedPayload = encryptContacts(contactsPlaintext, dek);
-    const creatorWrappedDEK = wrapDEK(dek, creatorProfile.encryptionPubKey);
+    const creatorWrappedDEK = wrapDEK(dek, normalizedCreatorPubKey);
     
     let helperWrappedDEK = '';
     if (helper && helper !== ethers.ZeroAddress) {
@@ -296,8 +307,18 @@ async function createContactKeyOnly(
         where: { address: helper },
       });
       
-      if (helperProfile && helperProfile.encryptionPubKey) {
-        helperWrappedDEK = wrapDEK(dek, helperProfile.encryptionPubKey);
+      if (!helperProfile || !helperProfile.encryptionPubKey) {
+        console.error(`[TaskSync] Helper ${helper} must have valid profile with encryption key to accept task ${taskId}`);
+        return false;
+      }
+      
+      // 严格验证 Helper 公钥
+      try {
+        const normalizedHelperPubKey = validateAndNormalizePublicKey(helperProfile.encryptionPubKey);
+        helperWrappedDEK = wrapDEK(dek, normalizedHelperPubKey);
+      } catch (error) {
+        console.error(`[TaskSync] Helper ${helper} has invalid encryption key for task ${taskId}:`, error);
+        return false;
       }
     }
     
@@ -365,24 +386,24 @@ async function updateHelperWrappedDEK(
       return false;
     }
     
-    // 验证公钥长度
-    const creatorKeyClean = creatorProfile.encryptionPubKey.startsWith('0x')
-      ? creatorProfile.encryptionPubKey.slice(2)
-      : creatorProfile.encryptionPubKey;
-    const helperKeyClean = helperProfile.encryptionPubKey.startsWith('0x')
-      ? helperProfile.encryptionPubKey.slice(2)
-      : helperProfile.encryptionPubKey;
+    // 严格验证公钥格式和可用性
+    const { validateAndNormalizePublicKey } = await import('./encryptionService');
+    let normalizedCreatorPubKey: string;
+    let normalizedHelperPubKey: string;
     
-    if (creatorKeyClean.length / 2 !== 32 || helperKeyClean.length / 2 !== 32) {
-      console.error(`[TaskSync] Invalid key length for task ${taskId}`);
+    try {
+      normalizedCreatorPubKey = validateAndNormalizePublicKey(creatorProfile.encryptionPubKey);
+      normalizedHelperPubKey = validateAndNormalizePublicKey(helperProfile.encryptionPubKey);
+    } catch (error) {
+      console.error(`[TaskSync] Invalid encryption keys for task ${taskId}:`, error);
       return false;
     }
     
     // 3. 重新生成 DEK 并包裹
     const dek = generateDEK();
     const encryptedPayload = encryptContacts(task.contactsPlaintext, dek);
-    const creatorWrappedDEK = wrapDEK(dek, creatorProfile.encryptionPubKey);
-    const helperWrappedDEK = wrapDEK(dek, helperProfile.encryptionPubKey);
+    const creatorWrappedDEK = wrapDEK(dek, normalizedCreatorPubKey);
+    const helperWrappedDEK = wrapDEK(dek, normalizedHelperPubKey);
     
     // 4. 使用事务更新
     await prisma.$transaction(async (tx) => {

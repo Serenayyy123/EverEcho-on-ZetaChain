@@ -53,7 +53,7 @@ export function Profile() {
   const [isSaving, setIsSaving] = useState(false);
 
   // 统计数据（独立加载，不依赖 activeTab）
-  const { stats, loading: statsLoading } = useTaskStats(provider, address);
+  const { stats, loading: statsLoading } = useTaskStats(provider, address, chainId);
 
   // 加载任务历史（用于任务列表，保持不变）
   const {
@@ -62,7 +62,8 @@ export function Profile() {
     error: historyError,
   } = useTaskHistory(
     provider,
-    address ? { role: activeTab, address } : null
+    address ? { role: activeTab, address } : null,
+    chainId
   );
 
   // 链下恢复 Profile（历史用户专用）

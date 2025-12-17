@@ -193,3 +193,37 @@ export function validateEncryptionPubKey(pubKeyHex: string): boolean {
   // 必须是合法的 hex
   return /^[0-9a-fA-F]{64}$/.test(cleanHex);
 }
+
+/**
+ * 严格验证并标准化公钥格式
+ * @param pubKeyHex 公钥（hex 格式）
+ * @returns 标准化的公钥（不含 0x 前缀）
+ * @throws Error 如果公钥无效
+ */
+export function validateAndNormalizePublicKey(pubKeyHex: string): string {
+  if (!pubKeyHex || typeof pubKeyHex !== 'string') {
+    throw new Error('Public key is required and must be a string');
+  }
+  
+  const cleanHex = pubKeyHex.startsWith('0x') 
+    ? pubKeyHex.slice(2) 
+    : pubKeyHex;
+  
+  if (cleanHex.length !== 64) {
+    throw new Error(`Invalid public key length: ${cleanHex.length} characters (expected 64)`);
+  }
+  
+  if (!/^[0-9a-fA-F]{64}$/.test(cleanHex)) {
+    throw new Error('Invalid public key format: must be 64 hexadecimal characters');
+  }
+  
+  // 测试公钥是否能正常用于加密
+  try {
+    const testDEK = generateDEK();
+    wrapDEK(testDEK, cleanHex);
+  } catch (error) {
+    throw new Error(`Public key failed encryption test: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+  
+  return cleanHex;
+}

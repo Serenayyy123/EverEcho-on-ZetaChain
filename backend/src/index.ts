@@ -8,6 +8,8 @@ import taskRoutes from './routes/task';
 import contactsRoutes from './routes/contacts';
 import healthzRoutes from './routes/healthz';
 import aiRoutes from './routes/ai';
+import metadataRoutes from './routes/metadata';
+import adminRoutes from './routes/admin';
 import { initEventListenerService } from './services/eventListenerService';
 import { initChainSyncService } from './services/chainSyncService';
 import { getTask } from './services/taskService';
@@ -112,6 +114,8 @@ app.use(express.json());
 // Routes
 app.use('/api/profile', profileRoutes);
 app.use('/api/task', taskRoutes);
+app.use('/api/tasks', metadataRoutes); // P0 Fix: New chain-first metadata endpoint
+app.use('/api/admin', adminRoutes); // P0 Fix: Admin cleanup endpoints
 app.use('/api/contacts', contactsRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/healthz', healthzRoutes);

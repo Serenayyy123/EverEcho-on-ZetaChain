@@ -41,8 +41,8 @@ export interface Task {
 }
 
 /**
- * 真实任务列表 Hook
- * 使用合约事件 + 轮询
+ * 区块链优先任务列表 Hook
+ * P0 Fix: 以区块链为主要数据源，防止显示 orphan metadata
  */
 export function useTasks(provider: ethers.Provider | null, chainId: number | null) {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -75,46 +75,76 @@ export function useTasks(provider: ethers.Provider | null, chainId: number | nul
         provider
       );
 
-      // 获取 taskCounter
+      console.log('[useTasks] 🔗 Loading tasks from blockchain (chain-first approach)...');
+
+      // P0 Fix: 区块链优先 - 获取 taskCounter
       const taskCounter = await contract.taskCounter();
+      console.log(`[useTasks] Found ${taskCounter} tasks on blockchain`);
+
       const taskPromises: Promise<Task | null>[] = [];
 
+      // P0 Fix: 只处理区块链上存在的任务
       for (let i = 1; i <= Number(taskCounter); i++) {
-        taskPromises.push(loadSingleTask(contract, i));
+        taskPromises.push(loadSingleTaskBlockchainFirst(contract, i));
       }
 
       const loadedTasks = (await Promise.all(taskPromises)).filter((t): t is Task => t !== null);
+      
+      console.log(`[useTasks] ✅ Loaded ${loadedTasks.length} valid tasks from blockchain`);
       setTasks(loadedTasks);
       setLoading(false);
       setError(null);
     } catch (err) {
-      console.error('Load tasks failed:', err);
+      console.error('[useTasks] ❌ Load tasks failed:', err);
       setError(err instanceof Error ? err.message : 'Failed to load tasks');
       setLoading(false);
     }
   };
 
-  const loadSingleTask = async (
+  /**
+   * P0 Fix: 区块链优先加载单个任务
+   * 只有区块链上存在的任务才会被返回
+   */
+  const loadSingleTaskBlockchainFirst = async (
     contract: ethers.Contract,
     taskId: number
   ): Promise<Task | null> => {
     try {
+      // P0 Fix: 首先从区块链读取任务数据
       const taskData = await contract.tasks(taskId);
       
-      // 加载元数据：统一使用 taskId（不使用 taskURI）
-      // 修复：确保 metadata 与 taskId 一一对应，避免缓存/绑定错误
+      // P0 Fix: 验证任务是否真实存在（creator 不为零地址）
+      if (taskData.creator === ethers.ZeroAddress) {
+        console.warn(`[useTasks] ⚠️ Task ${taskId} has zero creator address, skipping`);
+        return null;
+      }
+
+      console.log(`[useTasks] 📋 Task ${taskId} exists on blockchain, loading metadata...`);
+      
+      // P0 Fix: 尝试加载 metadata，如果失败则使用占位符
       let metadata: TaskData | undefined;
       let metadataError = false;
+      
       try {
-        console.log(`[useTasks] Loading metadata for taskId=${taskId}, taskURI=${taskData.taskURI}`);
         metadata = await apiClient.getTask(taskId.toString());
-        console.log(`[useTasks] Loaded metadata for taskId=${taskId}:`, {
+        console.log(`[useTasks] ✅ Loaded metadata for task ${taskId}:`, {
           title: metadata?.title,
           category: metadata?.category,
         });
       } catch (err) {
-        console.warn(`Failed to load metadata for task ${taskId}:`, err);
-        metadataError = true; // 标记元数据加载失败
+        console.warn(`[useTasks] ⚠️ Failed to load metadata for task ${taskId}, using placeholder:`, err);
+        metadataError = true;
+        
+        // P0 Fix: 提供占位符 metadata
+        metadata = {
+          taskId: taskId.toString(),
+          title: `Task #${taskId}`,
+          description: 'Metadata loading failed. This task exists on blockchain but metadata is unavailable.',
+          contactsEncryptedPayload: '',
+          createdAt: taskData.createdAt.toString(),
+          creator: taskData.creator,
+          category: 'unknown'
+        };
       }
 
       return {
@@ -139,7 +169,7 @@ export function useTasks(provider: ethers.Provider | null, chainId: number | nul
         metadataError,
       };
     } catch (err) {
-      console.error(`Failed to load task ${taskId}:`, err);
+      console.error(`[useTasks] ❌ Failed to load task ${taskId} from blockchain:`, err);
       return null;
     }
   };
@@ -157,7 +187,8 @@ export function useTasks(provider: ethers.Provider | null, chainId: number | nul
 }
 
 /**
- * 真实单个任务 Hook
+ * 区块链优先单个任务 Hook
+ * P0 Fix: 以区块链为主要数据源，提供清晰的错误处理
  */
 export function useTask(
   taskId: number,
@@ -189,22 +220,44 @@ export function useTask(
         provider
       );
 
+      console.log(`[useTask] 🔗 Loading task ${taskId} from blockchain...`);
       const taskData = await contract.tasks(taskId);
       
-      // 加载元数据：统一使用 taskId（不使用 taskURI）
-      // 修复：确保 metadata 与 taskId 一一对应，避免缓存/绑定错误
+      // P0 Fix: 验证任务是否真实存在
+      if (taskData.creator === ethers.ZeroAddress) {
+        console.warn(`[useTask] ❌ Task ${taskId} not found on blockchain (creator is zero address)`);
+        setError('Task not found on blockchain. This task may have failed to create or been cancelled.');
+        setTask(null);
+        setLoading(false);
+        return;
+      }
+
+      console.log(`[useTask] ✅ Task ${taskId} exists on blockchain, loading metadata...`);
+      
+      // P0 Fix: 尝试加载 metadata，如果失败则使用占位符
       let metadata: TaskData | undefined;
       let metadataError = false;
+      
       try {
-        console.log(`[useTask] Loading metadata for taskId=${taskId}, taskURI=${taskData.taskURI}`);
         metadata = await apiClient.getTask(taskId.toString());
-        console.log(`[useTask] Loaded metadata for taskId=${taskId}:`, {
+        console.log(`[useTask] ✅ Loaded metadata for task ${taskId}:`, {
           title: metadata?.title,
           category: metadata?.category,
         });
       } catch (err) {
-        console.warn(`Failed to load metadata for task ${taskId}:`, err);
-        metadataError = true; // 标记元数据加载失败
+        console.warn(`[useTask] ⚠️ Failed to load metadata for task ${taskId}, using placeholder:`, err);
+        metadataError = true;
+        
+        // P0 Fix: 提供占位符 metadata
+        metadata = {
+          taskId: taskId.toString(),
+          title: `Task #${taskId}`,
+          description: 'Metadata loading failed. This task exists on blockchain but metadata is unavailable.',
+          contactsEncryptedPayload: '',
+          createdAt: taskData.createdAt.toString(),
+          creator: taskData.creator,
+          category: 'unknown'
+        };
       }
 
       setTask({
@@ -232,8 +285,9 @@ export function useTask(
       setLoading(false);
       setError(null);
     } catch (err) {
-      console.error('Load task failed:', err);
+      console.error(`[useTask] ❌ Load task ${taskId} failed:`, err);
       setError(err instanceof Error ? err.message : 'Failed to load task');
+      setTask(null);
       setLoading(false);
     }
   };

@@ -1,7 +1,7 @@
 import React from 'react';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'success' | 'danger' | 'ghost';
+  variant?: 'primary' | 'secondary' | 'success' | 'danger' | 'ghost' | 'outline';
   size?: 'sm' | 'md' | 'lg';
   loading?: boolean;
   fullWidth?: boolean;
@@ -60,6 +60,11 @@ export function Button({
       color: 'rgba(255, 255, 255, 0.7)',
       border: '1px solid rgba(255, 255, 255, 0.2)',
     },
+    outline: {
+      backgroundColor: 'transparent',
+      color: 'rgba(102, 126, 234, 0.8)',
+      border: '1px solid rgba(102, 126, 234, 0.5)',
+    },
   };
 
   // 浅色主题样式（适配 TaskSquareV2 风格）
@@ -88,6 +93,11 @@ export function Button({
       backgroundColor: 'transparent',
       color: '#1A1A1A',
       border: '1px solid rgba(26, 26, 26, 0.12)',
+    },
+    outline: {
+      backgroundColor: 'transparent',
+      color: '#2563eb',
+      border: '1px solid #2563eb',
     },
   };
 

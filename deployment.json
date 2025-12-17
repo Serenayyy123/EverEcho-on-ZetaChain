@@ -12,7 +12,7 @@
     "network": "localhost",
     "chainId": 31337,
     "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-    "deployedAt": "2025-12-15T01:36:59.210Z",
+    "deployedAt": "2025-12-17T04:14:54.191Z",
     "contracts": {
       "EOCHOToken": {
         "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
@@ -25,19 +25,17 @@
         "blockNumber": 2
       },
       "TaskEscrow": {
-        "address": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
-        "txHash": "0x273bb778682929cd5fd2fb6814a46df8e9f805d57573f91777187a5f9dd6ceb7",
-        "blockNumber": 4
-      },
-      "EverEchoGateway": {
-        "address": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
-        "txHash": "0x41b9b5835db6a1c12a6c1b99a2ba1cf13963d57929aa341d79dffdb6d250b9b0",
-        "blockNumber": 6
+        "address": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
+        "txHash": "0xe2fe7b885e2146bde156f7535acb574a04ed88196b285955ca7755678b63cbe6",
+        "blockNumber": 7,
+        "previousAddress": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
+        "fixedAt": "2025-12-17T04:15:08.320Z",
+        "fixDescription": "双重扣费修复 - 职责分离，TaskEscrow只处理ECHO代币"
       },
       "MockZRC20": {
-        "address": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
-        "txHash": "0x900f1cc31e5e27785cf46463bd3fd908332c278dd3fa06b6fdf2ac3184612521",
-        "blockNumber": 7
+        "address": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
+        "txHash": "0xf2c897c8461ade3fe22ca51d64b55ff71f23230c71c4dc7c70ea6927b273cdc5",
+        "blockNumber": 6
       }
     },
     "rpc": "http://localhost:8545"
@@ -59,14 +57,22 @@
         "blockNumber": 14771714
       },
       "TaskEscrow": {
-        "address": "0x9ee8255e1D566Fa085DFFcE26ee1B8587cB47FD0",
-        "txHash": "0xef5ddcdc69e3384d94266e588cf04be48a8554fd5ce8d5f7a23ae7e6c76310be",
-        "blockNumber": 14771719
+        "address": "0xE442Eb737983986153E42C9ad28530676d8C1f55",
+        "txHash": "0x6f4fe2bb5fa82cdc4c677a93eceb00ca00081bf37ff6179dba613516ca1b698b",
+        "blockNumber": 14912510,
+        "previousAddress": "0x9ee8255e1D566Fa085DFFcE26ee1B8587cB47FD0",
+        "fixedAt": "2025-12-17T04:05:10.178Z",
+        "fixDescription": "双重扣费修复 - 职责分离，TaskEscrow只处理ECHO代币"
       },
       "EverEchoGateway": {
-        "address": "0x0AF4DB65C3DfEE92a910661367A10CF2420aC137",
-        "txHash": "0xddc8aa4fd78e6650b4bcd0e24a5894734af08138bfd80ad4e03438cdfe2eb2f2",
-        "blockNumber": 14771725
+        "address": "0x56C0E5531981394E473016F43E550F17fDE9b6C3",
+        "txHash": "0xe9a12eb57d39cb483bdc07bd58abd82bde15468b6a7a5a84a514aca8db765b27",
+        "blockNumber": 14912512
+      },
+      "EverEchoUniversalReward": {
+        "address": "0x8fA4C878b22279C5f602c4e9B6EC85BD23EFC6b3",
+        "txHash": "0x80fec7684b8c9a55af88da817b112c331101efae82257924ed880572418d39b2",
+        "blockNumber": 0
       }
     },
     "rpc": "https://zetachain-athens-evm.blockpi.network/v1/rpc/public"
