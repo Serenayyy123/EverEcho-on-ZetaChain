@@ -56,12 +56,88 @@ export function Home() {
             opacity: 1;
           }
         }
+
+        /* 响应式媒体查询 */
+        @media (max-width: 1500px) and (min-width: 1200px) {
+          .home-title-group {
+            left: 25% !important;
+          }
+          
+          .home-right-section {
+            right: 2% !important;
+            top: 50% !important;
+            transform: translateY(-50%) scale(0.9) !important;
+          }
+        }
+
+        @media (max-width: 1199px) {
+          .home-title-group {
+            left: 50% !important;
+            top: 15vh !important;
+            transform: translateX(-50%) !important;
+          }
+          
+          .home-title {
+            font-size: 90px !important;
+          }
+          
+          .home-zetachain-text {
+            font-size: 24px !important;
+            bottom: -25px !important;
+            right: -80px !important;
+          }
+          
+          .home-right-section {
+            position: static !important;
+            margin: 20px auto !important;
+            transform: none !important;
+            display: flex !important;
+            justify-content: center !important;
+            padding-top: 40px !important;
+          }
+          
+          .home-button-area {
+            bottom: 4vh !important;
+          }
+        }
+
+        @media (max-width: 1200px) {
+          .home-title {
+            font-size: 70px !important;
+          }
+          
+          .home-zetachain-text {
+            font-size: 20px !important;
+            bottom: -20px !important;
+            right: -60px !important;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .home-title-group {
+            top: 10vh !important;
+          }
+          
+          .home-title {
+            font-size: 50px !important;
+          }
+          
+          .home-zetachain-text {
+            font-size: 16px !important;
+            bottom: -15px !important;
+            right: -40px !important;
+          }
+          
+          .home-button-area {
+            bottom: 2vh !important;
+          }
+        }
       `}</style>
 
       {/* EverEcho标题 - 左侧黄金分割位置 */}
-      <div style={styles.titleGroup}>
+      <div className="home-title-group" style={styles.titleGroup}>
         <div style={styles.titleContainer}>
-          <h1 style={styles.title}>
+          <h1 className="home-title" style={styles.title}>
             <span style={styles.titleOrange}>
               {'Ever'.split('').map((letter, index) => (
                 <span
@@ -103,13 +179,13 @@ export function Home() {
               ))}
             </span>
           </h1>
-          <span style={styles.zetachainText}>on ZetaChain</span>
+          <span className="home-zetachain-text" style={styles.zetachainText}>on ZetaChain</span>
         </div>
 
       </div>
 
       {/* Connect Wallet按钮 - 中间底部 */}
-      <div style={styles.buttonArea}>
+      <div className="home-button-area" style={styles.buttonArea}>
         {!address ? (
           <>
             <div style={styles.buttonWrapper}>
@@ -162,7 +238,7 @@ export function Home() {
       </div>
 
       {/* How It Works流程图 - 右侧 */}
-      <div style={styles.rightSection}>
+      <div className="home-right-section" style={styles.rightSection}>
         <HowItWorks />
       </div>
     </div>
