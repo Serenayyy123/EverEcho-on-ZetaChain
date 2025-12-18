@@ -20,6 +20,7 @@ export function HowItWorks() {
       color: '#4A90E2', // 蓝色 - 冷静
       title: 'NEED HELP?',
       subtitle: 'SPEND ECHO',
+      extraText: '+ Cross-chain Assets',
       rotation: 1,
     },
     {
@@ -27,6 +28,7 @@ export function HowItWorks() {
       color: '#10B981', // 绿色 - 成长
       title: 'GIVE HELP?',
       subtitle: 'EARN ECHO',
+      extraText: '+ Withdraw Assets',
       rotation: -1,
     },
   ];
@@ -83,6 +85,12 @@ export function HowItWorks() {
         }
       `}</style>
 
+      {/* 标题 */}
+      <div style={styles.header}>
+        <h3 style={styles.headerTitle}>How EverEcho Works</h3>
+        <div style={styles.headerSubtitle}>Simple steps to get started</div>
+      </div>
+
       <div style={styles.cardsContainer}>
         {steps.map((step, index) => (
           <div
@@ -99,16 +107,23 @@ export function HowItWorks() {
               className="pulse-dot"
               style={{
                 ...styles.dot,
-                backgroundColor: step.color,
+                backgroundColor: '#00D4AA', // 统一使用ZetaChain绿色
                 animationDelay: `${index * 0.3}s`,
               }}
             />
 
             {/* 卡片内容 */}
             <div style={styles.cardContent}>
-              <span style={styles.title}>{step.title}</span>
-              <span style={styles.arrow}>→</span>
-              <span style={styles.subtitle}>{step.subtitle}</span>
+              <div style={styles.mainContent}>
+                <span style={styles.title}>{step.title}</span>
+                <span style={styles.arrow}>→</span>
+                <span style={styles.subtitle}>{step.subtitle}</span>
+              </div>
+              {step.extraText && (
+                <div style={styles.extraText}>
+                  {step.extraText}
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -123,12 +138,35 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     alignItems: 'center',
     gap: '24px',
-    padding: '0',
+    padding: '24px',
+    background: 'rgba(255, 255, 255, 0.1)',
+    backdropFilter: 'blur(10px)',
+    borderRadius: '16px',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+  },
+  header: {
+    textAlign: 'center',
+    marginBottom: '8px',
+  },
+  headerTitle: {
+    fontSize: '24px',
+    fontWeight: 800,
+    color: '#1A1A1A',
+    margin: '0 0 8px 0',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+  },
+  headerSubtitle: {
+    fontSize: '14px',
+    color: '#6B7280',
+    fontStyle: 'italic',
+    margin: 0,
   },
   cardsContainer: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '24px',
+    gap: '32px',
     width: '100%',
     maxWidth: '380px',
   },
@@ -172,14 +210,28 @@ const styles: Record<string, React.CSSProperties> = {
   },
   cardContent: {
     display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    marginLeft: '32px',
+  },
+  mainContent: {
+    display: 'flex',
     alignItems: 'center',
     gap: '12px',
-    marginLeft: '32px',
     fontSize: '18px',
     fontWeight: 700,
     color: '#1A1A1A',
     textTransform: 'uppercase',
     letterSpacing: '0.5px',
+  },
+  extraText: {
+    fontSize: '14px',
+    fontWeight: 600,
+    color: '#00D4AA',
+    fontStyle: 'italic',
+    marginLeft: '0px',
+    textTransform: 'none',
+    letterSpacing: '0.2px',
   },
   title: {
     fontWeight: 900,

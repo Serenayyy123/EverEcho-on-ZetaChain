@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useWallet } from '../hooks/useWallet';
 import { Alert } from '../components/ui/Alert';
 import { HowItWorks } from '../components/home/HowItWorks';
-import { AIIntegrationSummary } from '../components/ai/AIIntegrationSummary';
+
 
 /**
  * 首页 - 钱包连接
@@ -60,51 +60,52 @@ export function Home() {
 
       {/* EverEcho标题 - 左侧黄金分割位置 */}
       <div style={styles.titleGroup}>
-        <h1 style={styles.title}>
-          <span style={styles.titleOrange}>
-            {'Ever'.split('').map((letter, index) => (
-              <span
-                key={`ever-${index}`}
-                style={{
-                  ...styles.letter,
-                  animation: `popIn 0.5s ease ${index * 0.1}s forwards`,
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.animation = 'none';
-                  e.currentTarget.style.transform = 'scale(1.5)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'scale(1)';
-                }}
-              >
-                {letter}
-              </span>
-            ))}
-          </span>
-          <span style={styles.titleWhite}>
-            {'Echo'.split('').map((letter, index) => (
-              <span
-                key={`echo-${index}`}
-                style={{
-                  ...styles.letter,
-                  animation: `popIn 0.5s ease ${(index + 4) * 0.1}s forwards`,
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.animation = 'none';
-                  e.currentTarget.style.transform = 'scale(1.5)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'scale(1)';
-                }}
-              >
-                {letter}
-              </span>
-            ))}
-          </span>
-        </h1>
-        <p style={styles.tagline}>
-          Reach out, the world echoes back
-        </p>
+        <div style={styles.titleContainer}>
+          <h1 style={styles.title}>
+            <span style={styles.titleOrange}>
+              {'Ever'.split('').map((letter, index) => (
+                <span
+                  key={`ever-${index}`}
+                  style={{
+                    ...styles.letter,
+                    animation: `popIn 0.5s ease ${index * 0.1}s forwards`,
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.animation = 'none';
+                    e.currentTarget.style.transform = 'scale(1.5)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'scale(1)';
+                  }}
+                >
+                  {letter}
+                </span>
+              ))}
+            </span>
+            <span style={styles.titleWhite}>
+              {'Echo'.split('').map((letter, index) => (
+                <span
+                  key={`echo-${index}`}
+                  style={{
+                    ...styles.letter,
+                    animation: `popIn 0.5s ease ${(index + 4) * 0.1}s forwards`,
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.animation = 'none';
+                    e.currentTarget.style.transform = 'scale(1.5)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'scale(1)';
+                  }}
+                >
+                  {letter}
+                </span>
+              ))}
+            </span>
+          </h1>
+          <span style={styles.zetachainText}>on ZetaChain</span>
+        </div>
+
       </div>
 
       {/* Connect Wallet按钮 - 中间底部 */}
@@ -162,7 +163,6 @@ export function Home() {
 
       {/* How It Works流程图 - 右侧 */}
       <div style={styles.rightSection}>
-        <AIIntegrationSummary showDetails={false} />
         <HowItWorks />
       </div>
     </div>
@@ -178,13 +178,19 @@ const styles: Record<string, React.CSSProperties> = {
   },
   titleGroup: {
     position: 'absolute',
-    top: '25vh',
-    left: '38.2%',
+    top: '30vh',
+    left: '38%',
     transform: 'translateX(-50%)',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     gap: '20px',
+  },
+  titleContainer: {
+    position: 'relative',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
   },
   title: {
     fontSize: '120px',
@@ -287,5 +293,17 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'inline-block',
     transition: 'transform 0.2s ease',
     cursor: 'default',
+  },
+  zetachainText: {
+    position: 'absolute',
+    bottom: '-35px',
+    right: '-120px',
+    fontSize: '32px',
+    fontWeight: 700,
+    color: '#00D4AA',
+    fontStyle: 'italic',
+    transform: 'rotate(8deg)',
+    animation: 'popIn 0.5s ease 0.8s forwards',
+    opacity: 0,
   },
 };
